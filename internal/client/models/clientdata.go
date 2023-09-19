@@ -9,11 +9,25 @@ import (
 	"io"
 )
 
+type FolderDataType string
+
+var FolderData = struct {
+	CreditCard  FolderDataType
+	Credentials FolderDataType
+	Text        FolderDataType
+	Binary      FolderDataType
+}{
+	CreditCard:  "cc",
+	Credentials: "cr",
+	Text:        "tx",
+	Binary:      "bn",
+}
+
 type Data struct {
-	UUID     string `json:"uuid"`
-	Meta     string `json:"meta"`
-	DataType string `json:"data_type"`
-	Folder   Folder `json:"data"`
+	UUID     string         `json:"uuid"`
+	Meta     string         `json:"meta"`
+	DataType FolderDataType `json:"data_type"`
+	Folder   Folder         `json:"data"`
 }
 
 type Folder struct {
@@ -67,7 +81,7 @@ func (d *Data) EncryptData(key []byte) (*StoredData, error) {
 	return &StoredData{
 		UUID:          d.UUID,
 		Meta:          d.Meta,
-		DataType:      d.DataType,
+		DataType:      string(d.DataType),
 		EncryptedData: encryptedData,
 	}, nil
 }
