@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"github.com/h2p2f/dedicated-vault/internal/server/grpcserver/middlewares"
+
 	//"crypto/tls"
 	"github.com/h2p2f/dedicated-vault/internal/server/config"
 	"github.com/h2p2f/dedicated-vault/internal/server/grpcserver"
@@ -34,6 +36,12 @@ func Run(ctx context.Context) {
 	//	grpc.Creds(credentials.NewServerTLSFromCert(&cert)),
 	//}
 	var opts []grpc.ServerOption
+	unprotectedMethods := map[string]bool{
+		"/DedicatedVault/Register":       true,
+		"/DedicatedVault/Login":          true,
+		"/DedicatedVault/ChangePassword": true,
+	}
+	opts = append(opts, grpc.UnaryInterceptor(middlewares.JWTCheckingUnaryServerInterceptor(conf.JWTKey, unprotectedMethods)))
 	listener, err := net.Listen("tcp", ":8090")
 
 	if err != nil {

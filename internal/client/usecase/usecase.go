@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
@@ -15,6 +17,8 @@ type Storager interface {
 	UpdateData(user string, data models.StoredData) error
 	DeleteData(user string, data models.StoredData) error
 	GetDataByUUID(user string, uuid string) (*models.StoredData, error)
+	GetData(user string) ([]models.StoredData, error)
+	FindByMeta(user string, meta string) ([]models.StoredData, error)
 	DeleteAllData(user string) error
 }
 
@@ -57,23 +61,24 @@ func (c *ClientUseCase) CreateUser(userName, password, passphrase string) error 
 		return err
 	}
 	c.Config.Token = token
+	c.Config.User = userName
 	return nil
 }
 
 func (c *ClientUseCase) LoginUser(userName, password, passphrase string) error {
-	id, err := c.Storage.GetUserID(userName)
-	if err != nil {
-		return err
-	}
-	if id == 0 {
-		return fmt.Errorf("user not found")
+	_, err := c.Storage.GetUserID(userName)
+	if err != nil && errors.Is(err, sql.ErrNoRows) {
+		err = c.Storage.CreateUser(userName)
+		if err != nil {
+			return err
+		}
 	}
 	c.Config.Passphrase = passphrase
 	user := &pb.User{
 		Name:     userName,
 		Password: password,
 	}
-	token, err := c.Transporter.Login(context.Background(), user, "")
+	token, err := c.Transporter.Login(context.Background(), user, "testClientID")
 	if err != nil {
 		return err
 	}
@@ -105,15 +110,19 @@ func (c *ClientUseCase) ChangePassword(userName, password, newPassword string) e
 }
 
 func (c *ClientUseCase) SaveData(data models.Data) error {
+	fmt.Println("try to save data")
 	if c.Config.Token == "" {
 		return fmt.Errorf("user not logged in")
 	}
+	fmt.Println("encrypt data")
 	storedData, err := data.EncryptData([]byte(c.Config.Passphrase))
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 	err = c.Storage.CreateData(c.Config.User, *storedData)
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 	secretData := &pb.SecretData{
@@ -122,8 +131,10 @@ func (c *ClientUseCase) SaveData(data models.Data) error {
 		Type:  storedData.DataType,
 		Value: storedData.EncryptedData,
 	}
+	fmt.Println("try to save data to transporter")
 	err = c.Transporter.SaveSecret(context.Background(), secretData)
 	if err != nil {
+		fmt.Println(err)
 		return err
 	}
 	return nil
@@ -182,6 +193,27 @@ func (c *ClientUseCase) GetData(uuid string) (*models.Data, error) {
 	data, err := storedData.DecryptData([]byte(c.Config.Passphrase))
 	if err != nil {
 		return nil, err
+	}
+	return data, nil
+}
+
+func (c *ClientUseCase) GetDataByType(dataType string) ([]models.Data, error) {
+	if c.Config.Token == "" {
+		return nil, fmt.Errorf("user not logged in")
+	}
+	storedData, err := c.Storage.GetData(c.Config.User)
+	if err != nil {
+		return nil, err
+	}
+	var data []models.Data
+	for _, d := range storedData {
+		if d.DataType == dataType {
+			decryptData, err := d.DecryptData([]byte(c.Config.Passphrase))
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, *decryptData)
+		}
 	}
 	return data, nil
 }

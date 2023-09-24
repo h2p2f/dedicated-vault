@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"io"
@@ -59,7 +60,8 @@ type BinaryData struct {
 }
 
 func (d *Data) EncryptData(key []byte) (*StoredData, error) {
-	c, err := aes.NewCipher(key)
+	key32 := sha256.Sum256(key)
+	c, err := aes.NewCipher(key32[:])
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +96,8 @@ type StoredData struct {
 }
 
 func (s *StoredData) DecryptData(key []byte) (*Data, error) {
-	c, err := aes.NewCipher(key)
+	key32 := sha256.Sum256(key)
+	c, err := aes.NewCipher(key32[:])
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +117,7 @@ func (s *StoredData) DecryptData(key []byte) (*Data, error) {
 	var data Data
 	data.UUID = s.UUID
 	data.Meta = s.Meta
+	data.DataType = FolderDataType(s.DataType)
 	var folder Folder
 	err = json.Unmarshal(decryptedData, &folder)
 	if err != nil {

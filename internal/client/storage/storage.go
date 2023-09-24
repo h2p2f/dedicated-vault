@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"github.com/google/uuid"
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
 	_ "github.com/mattn/go-sqlite3"
@@ -12,11 +13,12 @@ const createTable = `
 
 CREATE TABLE IF NOT EXISTS data (
     	id INTEGER PRIMARY KEY AUTOINCREMENT,
-    	user_id INTEGER NOT NULL constraint user_id references users(id),
+    	user_id INTEGER NOT NULL,
     	uuid TEXT NOT NULL,
     	meta TEXT NOT NULL,
     	type TEXT NOT NULL,
-    	data BLOB NOT NULL
+    	data BLOB NOT NULL,
+    	FOREIGN KEY (user_id) REFERENCES users (id)
 	);
 CREATE TABLE IF NOT EXISTS users (
     	id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +65,7 @@ func (s *ClientStorage) GetUserID(userName string) (int64, error) {
 	var id int64
 	err := row.Scan(&id)
 	if err != nil {
-		s.logger.Error("failed to scan user", zap.Error(err))
+		//s.logger.Error("failed to scan user", zap.Error(err))
 		return 0, err
 	}
 
@@ -77,6 +79,7 @@ func (s *ClientStorage) CreateData(user string, data models.StoredData) error {
 		s.logger.Error("failed to get user id", zap.Error(err))
 		return err
 	}
+	data.UUID = uuid.New().String()
 	_, err = s.db.Exec("INSERT INTO data (user_id, uuid, meta, type, data) VALUES (?, ?, ?, ?, ?)", id, data.UUID, data.Meta, data.DataType, data.EncryptedData)
 
 	if err != nil {
@@ -118,7 +121,7 @@ func (s *ClientStorage) GetData(user string) ([]models.StoredData, error) {
 	var data []models.StoredData
 	for rows.Next() {
 		var d models.StoredData
-		err := rows.Scan(&d.UUID, &d.Meta, &d.EncryptedData)
+		err := rows.Scan(&d.UUID, &d.Meta, &d.DataType, &d.EncryptedData)
 		if err != nil {
 			s.logger.Error("failed to scan data", zap.Error(err))
 			return nil, err

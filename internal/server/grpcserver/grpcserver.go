@@ -3,7 +3,7 @@ package grpcserver
 import (
 	"context"
 	"fmt"
-	"github.com/h2p2f/dedicated-vault/internal/models"
+	"github.com/h2p2f/dedicated-vault/internal/server/models"
 	pb "github.com/h2p2f/dedicated-vault/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -108,6 +108,7 @@ func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest)
 		return nil, status.Error(codes.InvalidArgument, "metadata is empty")
 	}
 	userFromContext := md.Get("user")
+	fmt.Println(userFromContext)
 	if len(userFromContext) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "user is empty")
 	}
@@ -117,7 +118,10 @@ func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest)
 	}
 	_ = user
 	dataUUID, created, err := s.dataHandler.CreateData(ctx, user, models.VaultData{
-		Data: req.Data.Value,
+		//UserUUID: user.UUID,
+		Meta:     req.Data.Meta,
+		DataType: req.Data.Type,
+		Data:     req.Data.Value,
 	})
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -149,6 +153,8 @@ func (s *VaultServer) GetSecret(ctx context.Context, req *pb.GetSecretRequest) (
 	response := pb.GetSecretResponse{
 		Data: &pb.SecretData{
 			Uuid:  req.Uuid,
+			Meta:  data.Meta,
+			Type:  data.DataType,
 			Value: data.Data,
 		},
 	}
@@ -171,6 +177,8 @@ func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequ
 	_ = user
 	changed, err := s.dataHandler.ChangeData(ctx, user, models.VaultData{
 		DataUUID: req.Data.Uuid,
+		Meta:     req.Data.Meta,
+		DataType: req.Data.Type,
 		Data:     req.Data.Value,
 	})
 	if err != nil {
@@ -226,6 +234,8 @@ func (s *VaultServer) GetAllSecrets(ctx context.Context, req *pb.ListSecretsRequ
 	for _, d := range data {
 		response.Data = append(response.Data, &pb.SecretData{
 			Uuid:  d.DataUUID,
+			Meta:  d.Meta,
+			Type:  d.DataType,
 			Value: d.Data,
 		})
 	}

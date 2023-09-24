@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/h2p2f/dedicated-vault/internal/models"
 	"github.com/h2p2f/dedicated-vault/internal/server/config"
 	"github.com/h2p2f/dedicated-vault/internal/server/jwtprocessing"
+	"github.com/h2p2f/dedicated-vault/internal/server/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -109,7 +109,7 @@ func (s *Storage) Login(ctx context.Context, user models.User, clientID string) 
 
 func (s *Storage) GetUser(ctx context.Context, user string) (models.User, error) {
 	var checkUser models.User
-	err := s.users.FindOne(ctx, bson.D{{"login", user}}).Decode(&checkUser)
+	err := s.users.FindOne(ctx, bson.D{{"UUID", user}}).Decode(&checkUser)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return models.User{}, errors.New("user not found")

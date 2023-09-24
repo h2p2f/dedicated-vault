@@ -42,7 +42,7 @@ func Run(ctx context.Context) {
 	//	fmt.Println(err)
 	//}
 
-	guiApp := gui.NewGUIApp(uc, conf)
+	guiApp := gui.NewGraphicApp(uc, conf)
 	guiApp.Run(ctx)
 
 }

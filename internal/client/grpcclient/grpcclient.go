@@ -3,6 +3,7 @@ package grpcclient
 import (
 	"context"
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
+	"github.com/h2p2f/dedicated-vault/internal/client/grpcclient/middlewares"
 	pb "github.com/h2p2f/dedicated-vault/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -21,7 +22,7 @@ type Client struct {
 	pb.DedicatedVaultClient
 	config *config.ClientConfig
 	logger *zap.Logger
-	Token  string
+	//Token  string
 }
 
 func NewClient(config *config.ClientConfig, logger *zap.Logger) *Client {
@@ -30,7 +31,7 @@ func NewClient(config *config.ClientConfig, logger *zap.Logger) *Client {
 		config: config,
 		//DedicatedVaultClient: vaultClient,
 		logger: logger,
-		Token:  "",
+		//Token:  "",
 	}
 }
 
@@ -43,6 +44,7 @@ func (c *Client) Connect() (*grpc.ClientConn, error) {
 	//}
 	opts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(middlewares.JWTInjectorUnaryClientInterceptor(c.config.Token)),
 	}
 	conn, err := grpc.Dial(c.config.StorageAddress, opts...)
 	if err != nil {
@@ -65,7 +67,7 @@ func (c *Client) Register(ctx context.Context, user *pb.User, clientID string) (
 	if err != nil {
 		return "", err
 	}
-	c.Token = resp.Token
+	c.config.Token = resp.Token
 	err = conn.Close()
 	if err != nil {
 		return "", err
@@ -85,7 +87,7 @@ func (c *Client) Login(ctx context.Context, user *pb.User, clientID string) (str
 	if err != nil {
 		return "", err
 	}
-	c.Token = resp.Token
+	c.config.Token = resp.Token
 	err = conn.Close()
 	if err != nil {
 		return "", err
@@ -101,14 +103,22 @@ func (c *Client) ChangePassword(ctx context.Context, user *pb.User, newPassword 
 	if err != nil {
 		return "", err
 	}
-	c.Token = resp.Token
+	c.config.Token = resp.Token
 	return resp.Token, nil
 }
 
 func (c *Client) SaveSecret(ctx context.Context, data *pb.SecretData) error {
-	_, err := c.DedicatedVaultClient.SaveSecret(ctx, &pb.SaveSecretRequest{
+	conn, err := c.Connect()
+	if err != nil {
+		return err
+	}
+	_, err = c.DedicatedVaultClient.SaveSecret(ctx, &pb.SaveSecretRequest{
 		Data: data,
 	})
+	if err != nil {
+		return err
+	}
+	err = conn.Close()
 	if err != nil {
 		return err
 	}
