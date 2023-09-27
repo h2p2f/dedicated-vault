@@ -23,7 +23,6 @@ const (
 	DedicatedVault_Login_FullMethodName          = "/DedicatedVault/Login"
 	DedicatedVault_ChangePassword_FullMethodName = "/DedicatedVault/ChangePassword"
 	DedicatedVault_SaveSecret_FullMethodName     = "/DedicatedVault/SaveSecret"
-	DedicatedVault_GetSecret_FullMethodName      = "/DedicatedVault/GetSecret"
 	DedicatedVault_ChangeSecret_FullMethodName   = "/DedicatedVault/ChangeSecret"
 	DedicatedVault_DeleteSecret_FullMethodName   = "/DedicatedVault/DeleteSecret"
 	DedicatedVault_ListSecrets_FullMethodName    = "/DedicatedVault/ListSecrets"
@@ -37,7 +36,6 @@ type DedicatedVaultClient interface {
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	ChangePassword(ctx context.Context, in *ChangePasswordRequest, opts ...grpc.CallOption) (*ChangePasswordResponse, error)
 	SaveSecret(ctx context.Context, in *SaveSecretRequest, opts ...grpc.CallOption) (*SaveSecretResponse, error)
-	GetSecret(ctx context.Context, in *GetSecretRequest, opts ...grpc.CallOption) (*GetSecretResponse, error)
 	ChangeSecret(ctx context.Context, in *ChangeSecretRequest, opts ...grpc.CallOption) (*ChangeSecretResponse, error)
 	DeleteSecret(ctx context.Context, in *DeleteSecretRequest, opts ...grpc.CallOption) (*DeleteSecretResponse, error)
 	ListSecrets(ctx context.Context, in *ListSecretsRequest, opts ...grpc.CallOption) (*ListSecretsResponse, error)
@@ -87,15 +85,6 @@ func (c *dedicatedVaultClient) SaveSecret(ctx context.Context, in *SaveSecretReq
 	return out, nil
 }
 
-func (c *dedicatedVaultClient) GetSecret(ctx context.Context, in *GetSecretRequest, opts ...grpc.CallOption) (*GetSecretResponse, error) {
-	out := new(GetSecretResponse)
-	err := c.cc.Invoke(ctx, DedicatedVault_GetSecret_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *dedicatedVaultClient) ChangeSecret(ctx context.Context, in *ChangeSecretRequest, opts ...grpc.CallOption) (*ChangeSecretResponse, error) {
 	out := new(ChangeSecretResponse)
 	err := c.cc.Invoke(ctx, DedicatedVault_ChangeSecret_FullMethodName, in, out, opts...)
@@ -131,7 +120,6 @@ type DedicatedVaultServer interface {
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	ChangePassword(context.Context, *ChangePasswordRequest) (*ChangePasswordResponse, error)
 	SaveSecret(context.Context, *SaveSecretRequest) (*SaveSecretResponse, error)
-	GetSecret(context.Context, *GetSecretRequest) (*GetSecretResponse, error)
 	ChangeSecret(context.Context, *ChangeSecretRequest) (*ChangeSecretResponse, error)
 	DeleteSecret(context.Context, *DeleteSecretRequest) (*DeleteSecretResponse, error)
 	ListSecrets(context.Context, *ListSecretsRequest) (*ListSecretsResponse, error)
@@ -153,9 +141,6 @@ func (UnimplementedDedicatedVaultServer) ChangePassword(context.Context, *Change
 }
 func (UnimplementedDedicatedVaultServer) SaveSecret(context.Context, *SaveSecretRequest) (*SaveSecretResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SaveSecret not implemented")
-}
-func (UnimplementedDedicatedVaultServer) GetSecret(context.Context, *GetSecretRequest) (*GetSecretResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSecret not implemented")
 }
 func (UnimplementedDedicatedVaultServer) ChangeSecret(context.Context, *ChangeSecretRequest) (*ChangeSecretResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ChangeSecret not implemented")
@@ -251,24 +236,6 @@ func _DedicatedVault_SaveSecret_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
-func _DedicatedVault_GetSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSecretRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DedicatedVaultServer).GetSecret(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: DedicatedVault_GetSecret_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DedicatedVaultServer).GetSecret(ctx, req.(*GetSecretRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _DedicatedVault_ChangeSecret_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ChangeSecretRequest)
 	if err := dec(in); err != nil {
@@ -345,10 +312,6 @@ var DedicatedVault_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SaveSecret",
 			Handler:    _DedicatedVault_SaveSecret_Handler,
-		},
-		{
-			MethodName: "GetSecret",
-			Handler:    _DedicatedVault_GetSecret_Handler,
 		},
 		{
 			MethodName: "ChangeSecret",

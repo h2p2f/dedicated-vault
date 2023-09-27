@@ -1,7 +1,7 @@
 package gui
 
 import (
-	"fmt"
+	"context"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -10,7 +10,8 @@ import (
 	"io"
 )
 
-func (g *GraphicApp) binaryTab() (*widget.List, *fyne.Container) {
+func (g *GraphicApp) binaryTab(ctx context.Context) (*widget.List, *fyne.Container) {
+	var err error
 	var binaryData []byte
 
 	// declare binary area's widgets
@@ -35,11 +36,9 @@ func (g *GraphicApp) binaryTab() (*widget.List, *fyne.Container) {
 	binaryUUIDLabel := widget.NewLabel("")
 	binaryUUIDLabel.Hide()
 
-	//get binary list
-	listData, err := g.processor.GetDataByType("bi")
-	if err != nil {
-		fmt.Println(err)
-	}
+	//get binary list, error not handled because it called on startup
+	//user may not be logged in
+	listData, _ := g.processor.GetDataByType("bi")
 
 	// construct binary list
 	binaryList := widget.NewList(
@@ -65,7 +64,7 @@ func (g *GraphicApp) binaryTab() (*widget.List, *fyne.Container) {
 		g.notLoggedIn()
 		listData, err = g.processor.GetDataByType("bi")
 		if err != nil {
-			fmt.Println(err)
+			g.dialogErr(err)
 		}
 		binaryList.Refresh()
 	}
@@ -88,8 +87,9 @@ func (g *GraphicApp) binaryTab() (*widget.List, *fyne.Container) {
 			DataType: "bi",
 			Folder:   folder,
 		}
-		err := g.processor.SaveData(data)
+		err := g.processor.SaveData(ctx, data)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -108,8 +108,9 @@ func (g *GraphicApp) binaryTab() (*widget.List, *fyne.Container) {
 			Meta:   binaryMetaEntry.Text,
 			Folder: models.Folder{Binary: models.BinaryData{Name: binaryNameEntry.Text, Data: binaryData}},
 		}
-		err := g.processor.SaveData(data)
+		err := g.processor.SaveData(ctx, data)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -128,8 +129,9 @@ func (g *GraphicApp) binaryTab() (*widget.List, *fyne.Container) {
 			Meta:   binaryMetaEntry.Text,
 			Folder: models.Folder{Binary: models.BinaryData{Name: binaryNameEntry.Text, Data: binaryData}},
 		}
-		err := g.processor.DeleteData(data)
+		err := g.processor.DeleteData(ctx, data)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh

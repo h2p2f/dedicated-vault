@@ -1,15 +1,15 @@
 package gui
 
 import (
-	"fmt"
+	"context"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
 )
 
-func (g *GraphicApp) creditCardTab() (*widget.List, *fyne.Container) {
-
+func (g *GraphicApp) creditCardTab(ctx context.Context) (*widget.List, *fyne.Container) {
+	var err error
 	// declare credit card area's widgets
 	ccLabel := widget.NewLabel("Credit card details:")
 	ccMeta := widget.NewLabel("Meta:")
@@ -26,10 +26,9 @@ func (g *GraphicApp) creditCardTab() (*widget.List, *fyne.Container) {
 	ccUUIDLabel.Hide()
 
 	//get credit card list
-	listData, err := g.processor.GetDataByType("cc")
-	if err != nil {
-		fmt.Println(err)
-	}
+	//error not handled because it called on startup
+	//user may not be logged in
+	listData, _ := g.processor.GetDataByType("cc")
 
 	// construct credit card list
 	creditCardList := widget.NewList(
@@ -57,6 +56,7 @@ func (g *GraphicApp) creditCardTab() (*widget.List, *fyne.Container) {
 		g.notLoggedIn()
 		listData, err = g.processor.GetDataByType("cc")
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		creditCardList.Refresh()
@@ -88,8 +88,9 @@ func (g *GraphicApp) creditCardTab() (*widget.List, *fyne.Container) {
 			DataType: "cc",
 			Folder:   folder,
 		}
-		err := g.processor.SaveData(saved)
+		err := g.processor.SaveData(ctx, saved)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -123,8 +124,9 @@ func (g *GraphicApp) creditCardTab() (*widget.List, *fyne.Container) {
 			Folder:   folder,
 			UUID:     ccUUIDLabel.Text,
 		}
-		err := g.processor.ChangeData(saved)
+		err := g.processor.ChangeData(ctx, saved)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -158,8 +160,9 @@ func (g *GraphicApp) creditCardTab() (*widget.List, *fyne.Container) {
 			Folder:   folder,
 			UUID:     ccUUIDLabel.Text,
 		}
-		err := g.processor.DeleteData(saved)
+		err := g.processor.DeleteData(ctx, saved)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh

@@ -5,9 +5,10 @@ import (
 )
 
 type User struct {
-	UUID     string `json:"uuid" bson:"UUID"`
-	Login    string `json:"login" bson:"login"`
-	Password string `json:"password" bson:"password"`
+	UUID              string `json:"uuid" bson:"UUID"`
+	Login             string `json:"login" bson:"login"`
+	Password          string `json:"password" bson:"password"`
+	LastServerUpdated int64  `json:"last_server_updated" bson:"lastServerUpdated"`
 }
 
 func (u *User) FromPB(pb *pb.User) {

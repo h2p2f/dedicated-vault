@@ -22,7 +22,9 @@ CREATE TABLE IF NOT EXISTS data (
 	);
 CREATE TABLE IF NOT EXISTS users (
     	id INTEGER PRIMARY KEY AUTOINCREMENT,
-    	username TEXT NOT NULL UNIQUE
+    	username TEXT NOT NULL UNIQUE,
+    	last_updated INTEGER NOT NULL DEFAULT 0
+                                 
     	);
 `
 
@@ -51,8 +53,28 @@ func (s *ClientStorage) Close() error {
 	return s.db.Close()
 }
 
+func (s *ClientStorage) GetLastServerUpdated(username string) (int64, error) {
+	row := s.db.QueryRow("SELECT last_updated FROM users WHERE username = ?", username)
+	var lastUpdated int64
+	err := row.Scan(&lastUpdated)
+	if err != nil {
+		s.logger.Error("failed to scan last server updated", zap.Error(err))
+		return 0, err
+	}
+	return lastUpdated, nil
+}
+
+func (s *ClientStorage) UpdateLastServerUpdated(username string, updateTime int64) error {
+	_, err := s.db.Exec("UPDATE users SET last_updated = ? WHERE username = ?", updateTime, username)
+	if err != nil {
+		s.logger.Error("failed to update last server updated", zap.Error(err))
+		return err
+	}
+	return nil
+}
+
 func (s *ClientStorage) CreateUser(userName string) error {
-	_, err := s.db.Exec("INSERT INTO users (username) VALUES (?)", userName)
+	_, err := s.db.Exec("INSERT INTO users (username, last_updated) VALUES (?, ?)", userName, 0)
 	if err != nil {
 		s.logger.Error("failed to insert user", zap.Error(err))
 		return err
@@ -65,7 +87,7 @@ func (s *ClientStorage) GetUserID(userName string) (int64, error) {
 	var id int64
 	err := row.Scan(&id)
 	if err != nil {
-		//s.logger.Error("failed to scan user", zap.Error(err))
+		s.logger.Error("failed to scan user", zap.Error(err))
 		return 0, err
 	}
 

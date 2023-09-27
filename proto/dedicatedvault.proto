@@ -2,7 +2,6 @@ syntax = "proto3";
 
 option go_package = "github.com/h2p2f/dedicated-vault/proto";
 
-
 message User {
   string name = 1;
   string password = 2;
@@ -10,27 +9,25 @@ message User {
 
 message RegisterRequest {
   User user = 1;
-  string passphrase = 2;
-  string client_id = 3;
 }
 
 message RegisterResponse {
   string token = 1;
+  int64 last_server_updated = 2;
 }
 
 message LoginRequest {
   User user = 1;
-  string client_id = 2;
 }
 
 message LoginResponse {
   string token = 1;
+  int64 last_server_updated = 2;
 }
 
 message ChangePasswordRequest {
   User user = 1;
   string new_password = 2;
-  string client_id = 3;
 }
 
 message ChangePasswordResponse {
@@ -51,14 +48,7 @@ message SaveSecretRequest {
 message SaveSecretResponse {
   string uuid = 1;
   int64 created = 2;
-}
-
-message GetSecretRequest {
-  string uuid = 1;
-}
-
-message GetSecretResponse {
-  SecretData data = 1;
+  int64 last_server_updated = 3;
 }
 
 message ChangeSecretRequest {
@@ -67,6 +57,7 @@ message ChangeSecretRequest {
 
 message ChangeSecretResponse {
   int64 updated = 1;
+  int64 last_server_updated = 2;
 }
 
 message DeleteSecretRequest {
@@ -75,6 +66,7 @@ message DeleteSecretRequest {
 
 message DeleteSecretResponse {
   string uuid = 1;
+  int64 last_server_updated = 2;
 }
 
 message ListSecretsRequest {
@@ -82,6 +74,7 @@ message ListSecretsRequest {
 
 message ListSecretsResponse {
   repeated SecretData data = 1;
+  int64 last_server_updated = 2;
 }
 
 service DedicatedVault {
@@ -89,7 +82,6 @@ service DedicatedVault {
   rpc Login(LoginRequest) returns (LoginResponse);
   rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse);
   rpc SaveSecret(SaveSecretRequest) returns (SaveSecretResponse);
-  rpc GetSecret(GetSecretRequest) returns (GetSecretResponse);
   rpc ChangeSecret(ChangeSecretRequest) returns (ChangeSecretResponse);
   rpc DeleteSecret(DeleteSecretRequest) returns (DeleteSecretResponse);
   rpc ListSecrets(ListSecretsRequest) returns (ListSecretsResponse);

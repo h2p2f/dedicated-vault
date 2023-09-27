@@ -1,14 +1,15 @@
 package gui
 
 import (
-	"fmt"
+	"context"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
 )
 
-func (g *GraphicApp) credentialTab() (*widget.List, *fyne.Container) {
+func (g *GraphicApp) credentialTab(ctx context.Context) (*widget.List, *fyne.Container) {
+	var err error
 
 	// declare credentials area's widgets
 	crLabel := widget.NewLabel("Credentials details:")
@@ -22,10 +23,9 @@ func (g *GraphicApp) credentialTab() (*widget.List, *fyne.Container) {
 	crUUIDLabel.Hide()
 
 	//get credentials list
-	listData, err := g.processor.GetDataByType("cr")
-	if err != nil {
-		fmt.Println(err)
-	}
+	//error not handled because it called on startup
+	//user may not be logged in
+	listData, _ := g.processor.GetDataByType("cr")
 
 	// construct credentials list
 	credentialsList := widget.NewList(
@@ -51,7 +51,7 @@ func (g *GraphicApp) credentialTab() (*widget.List, *fyne.Container) {
 		g.notLoggedIn()
 		listData, err = g.processor.GetDataByType("cr")
 		if err != nil {
-			fmt.Println(err)
+			g.dialogErr(err)
 		}
 		credentialsList.Refresh()
 	}
@@ -77,8 +77,9 @@ func (g *GraphicApp) credentialTab() (*widget.List, *fyne.Container) {
 			Folder:   folder,
 		}
 
-		err := g.processor.SaveData(saved)
+		err := g.processor.SaveData(ctx, saved)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -106,8 +107,9 @@ func (g *GraphicApp) credentialTab() (*widget.List, *fyne.Container) {
 			DataType: "cr",
 			Folder:   folder,
 		}
-		err := g.processor.DeleteData(removed)
+		err := g.processor.DeleteData(ctx, removed)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -133,8 +135,9 @@ func (g *GraphicApp) credentialTab() (*widget.List, *fyne.Container) {
 			DataType: "cr",
 			Folder:   folder,
 		}
-		err := g.processor.ChangeData(edited)
+		err := g.processor.ChangeData(ctx, edited)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh

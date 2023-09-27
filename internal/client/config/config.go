@@ -1,30 +1,36 @@
 package config
 
-import "crypto/x509"
+import (
+	"google.golang.org/grpc/credentials"
+	"runtime"
+)
 
 type ClientConfig struct {
-	StorageAddress string `yaml:"storage_address"`
-	DBPath         string `yaml:"db_path"`
-	Secret         string `yaml:"secret"`
-	User           string `yaml:"user"`
-	Passphrase     string `yaml:"pass_phrase"`
-	Token          string `yaml:"token"`
-	CryptoKey      []byte `yaml:"crypto_key"`
-	IsLoggedIn     bool   `yaml:"is_logged_in"`
-	Cert           *x509.CertPool
+	StorageAddress    string `yaml:"storage_address"`
+	DBPath            string `yaml:"db_path"`
+	Secret            string `yaml:"secret"`
+	User              string `yaml:"user"`
+	Passphrase        string `yaml:"pass_phrase"`
+	Token             string `yaml:"token"`
+	CryptoKey         []byte `yaml:"crypto_key"`
+	IsLoggedIn        bool   `yaml:"is_logged_in"`
+	LastServerUpdated int64  `yaml:"last_server_updated"`
+	TLSConfig         credentials.TransportCredentials
 }
 
 func NewClientConfig() *ClientConfig {
+	var dbPath string
+	if runtime.GOOS == "windows" {
+		dbPath = "C:\\Users\\Public\\vault.db"
+	} else {
+		dbPath = "/tmp/vault.db"
+	}
 	return &ClientConfig{
 		StorageAddress: "localhost:8090",
-		DBPath:         "/tmp/vault.db",
+		DBPath:         dbPath,
 		Passphrase:     "",
 		IsLoggedIn:     false,
 		Token:          "",
-		Cert:           nil,
+		TLSConfig:      nil,
 	}
-}
-
-func (c ClientConfig) SetPassphrase(passphrase string) {
-	c.Passphrase = passphrase
 }

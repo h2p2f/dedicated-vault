@@ -7,43 +7,26 @@ import (
 	pb "github.com/h2p2f/dedicated-vault/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	//"google.golang.org/grpc/credentials"
 )
-
-//type Storager interface {
-//	CreateData(ctx context.Context, data models.Data) error
-//	GetData(ctx context.Context) ([]models.Data, error)
-//	UpdateData(ctx context.Context, data models.Data) error
-//	DeleteData(ctx context.Context, data models.Data) error
-//}
 
 type Client struct {
 	pb.DedicatedVaultClient
 	config *config.ClientConfig
 	logger *zap.Logger
-	//Token  string
 }
 
 func NewClient(config *config.ClientConfig, logger *zap.Logger) *Client {
 	return &Client{
-		//Storage:              storage,
 		config: config,
-		//DedicatedVaultClient: vaultClient,
 		logger: logger,
-		//Token:  "",
 	}
 }
 
 func (c *Client) Connect() (*grpc.ClientConn, error) {
-	//creds, _ := credentials.NewClientTLSFromFile("./crypto/public.crt", "localhost")
-	////creds := credentials.NewClientTLSFromCert(c.config.Cert, "localhost")
-	//opts := []grpc.DialOption{
-	//	grpc.WithTransportCredentials(creds),
-	//	//grpc.WithBlock(),
-	//}
+
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(c.config.TLSConfig),
 		grpc.WithUnaryInterceptor(middlewares.JWTInjectorUnaryClientInterceptor(c.config.Token)),
 	}
 	conn, err := grpc.Dial(c.config.StorageAddress, opts...)
@@ -54,20 +37,20 @@ func (c *Client) Connect() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-func (c *Client) Register(ctx context.Context, user *pb.User, clientID string) (string, error) {
+func (c *Client) Register(ctx context.Context, user *pb.User) (string, error) {
 	conn, err := c.Connect()
 	if err != nil {
 		return "", err
 	}
 
 	resp, err := c.DedicatedVaultClient.Register(ctx, &pb.RegisterRequest{
-		User:     user,
-		ClientId: clientID,
+		User: user,
 	})
 	if err != nil {
 		return "", err
 	}
 	c.config.Token = resp.Token
+	c.config.LastServerUpdated = resp.LastServerUpdated
 	err = conn.Close()
 	if err != nil {
 		return "", err
@@ -75,19 +58,19 @@ func (c *Client) Register(ctx context.Context, user *pb.User, clientID string) (
 	return resp.Token, nil
 }
 
-func (c *Client) Login(ctx context.Context, user *pb.User, clientID string) (string, error) {
+func (c *Client) Login(ctx context.Context, user *pb.User) (string, error) {
 	conn, err := c.Connect()
 	if err != nil {
 		return "", err
 	}
 	resp, err := c.DedicatedVaultClient.Login(ctx, &pb.LoginRequest{
-		User:     user,
-		ClientId: clientID,
+		User: user,
 	})
 	if err != nil {
 		return "", err
 	}
 	c.config.Token = resp.Token
+	c.config.LastServerUpdated = resp.LastServerUpdated
 	err = conn.Close()
 	if err != nil {
 		return "", err
@@ -112,12 +95,13 @@ func (c *Client) SaveSecret(ctx context.Context, data *pb.SecretData) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.DedicatedVaultClient.SaveSecret(ctx, &pb.SaveSecretRequest{
+	resp, err := c.DedicatedVaultClient.SaveSecret(ctx, &pb.SaveSecretRequest{
 		Data: data,
 	})
 	if err != nil {
 		return err
 	}
+	c.config.LastServerUpdated = resp.LastServerUpdated
 	err = conn.Close()
 	if err != nil {
 		return err
@@ -125,20 +109,19 @@ func (c *Client) SaveSecret(ctx context.Context, data *pb.SecretData) error {
 	return nil
 }
 
-func (c *Client) GetSecret(ctx context.Context, uuid string) (*pb.SecretData, error) {
-	resp, err := c.DedicatedVaultClient.GetSecret(ctx, &pb.GetSecretRequest{
-		Uuid: uuid,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return resp.Data, nil
-}
-
 func (c *Client) ChangeSecret(ctx context.Context, data *pb.SecretData) error {
-	_, err := c.DedicatedVaultClient.ChangeSecret(ctx, &pb.ChangeSecretRequest{
+	conn, err := c.Connect()
+	if err != nil {
+		return err
+	}
+	resp, err := c.DedicatedVaultClient.ChangeSecret(ctx, &pb.ChangeSecretRequest{
 		Data: data,
 	})
+	if err != nil {
+		return err
+	}
+	c.config.LastServerUpdated = resp.LastServerUpdated
+	err = conn.Close()
 	if err != nil {
 		return err
 	}
@@ -146,9 +129,18 @@ func (c *Client) ChangeSecret(ctx context.Context, data *pb.SecretData) error {
 }
 
 func (c *Client) DeleteSecret(ctx context.Context, uuid string) error {
-	_, err := c.DedicatedVaultClient.DeleteSecret(ctx, &pb.DeleteSecretRequest{
+	conn, err := c.Connect()
+	if err != nil {
+		return err
+	}
+	resp, err := c.DedicatedVaultClient.DeleteSecret(ctx, &pb.DeleteSecretRequest{
 		Uuid: uuid,
 	})
+	if err != nil {
+		return err
+	}
+	c.config.LastServerUpdated = resp.LastServerUpdated
+	err = conn.Close()
 	if err != nil {
 		return err
 	}
@@ -156,7 +148,16 @@ func (c *Client) DeleteSecret(ctx context.Context, uuid string) error {
 }
 
 func (c *Client) ListSecrets(ctx context.Context) ([]*pb.SecretData, error) {
+	conn, err := c.Connect()
+	if err != nil {
+		return nil, err
+	}
 	resp, err := c.DedicatedVaultClient.ListSecrets(ctx, &pb.ListSecretsRequest{})
+	if err != nil {
+		return nil, err
+	}
+	c.config.LastServerUpdated = resp.LastServerUpdated
+	err = conn.Close()
 	if err != nil {
 		return nil, err
 	}

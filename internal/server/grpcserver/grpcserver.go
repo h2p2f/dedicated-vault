@@ -9,13 +9,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"time"
 )
 
 //go:generate mockery --name UserHandler --output ./mocks --filename mocks_userhandler.go
 type UserHandler interface {
-	Register(ctx context.Context, user models.User, clientID string) (string, error)
-	Login(ctx context.Context, user models.User, clientID string) (string, error)
+	Register(ctx context.Context, user models.User) (string, int64, error)
+	Login(ctx context.Context, user models.User) (string, int64, error)
 	GetUser(ctx context.Context, user string) (models.User, error)
 	ChangePassword(ctx context.Context, user models.User, newPassword string) (string, error)
 	DeleteUser(ctx context.Context, user models.User) error
@@ -23,11 +22,10 @@ type UserHandler interface {
 
 //go:generate mockery --name DataHandler --output ./mocks --filename mocks_datahandler.go
 type DataHandler interface {
-	CreateData(ctx context.Context, user models.User, data models.VaultData) (string, time.Time, error)
-	GetData(ctx context.Context, user models.User, uuidData string) (models.VaultData, error)
-	ChangeData(ctx context.Context, user models.User, data models.VaultData) (time.Time, error)
+	CreateData(ctx context.Context, user models.User, data models.VaultData) (string, int64, error)
+	ChangeData(ctx context.Context, user models.User, data models.VaultData) (int64, error)
 	GetAllData(ctx context.Context, user models.User) ([]models.VaultData, error)
-	DeleteData(ctx context.Context, user models.User, data models.VaultData) error
+	DeleteData(ctx context.Context, user models.User, data models.VaultData) (int64, error)
 }
 
 type VaultServer struct {
@@ -49,17 +47,17 @@ func (s *VaultServer) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 	if req.User.Name == "" || req.User.Password == "" {
 		return nil, status.Error(codes.InvalidArgument, "login or password is empty")
 	}
-	fmt.Println(req.User.Name, req.User.Password, req.ClientId)
-	token, err := s.userHandler.Register(ctx, models.User{
+	token, lastServerUpdated, err := s.userHandler.Register(ctx, models.User{
 		Login:    req.User.Name,
 		Password: req.User.Password,
-	}, req.ClientId)
+	})
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	response := pb.RegisterResponse{
-		Token: token,
+		Token:             token,
+		LastServerUpdated: lastServerUpdated,
 	}
 	return &response, nil
 }
@@ -69,16 +67,17 @@ func (s *VaultServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		return nil, status.Error(codes.InvalidArgument, "login or password is empty")
 	}
 
-	token, err := s.userHandler.Login(ctx, models.User{
+	token, lastServerUpdated, err := s.userHandler.Login(ctx, models.User{
 		Login:    req.User.Name,
 		Password: req.User.Password,
-	}, req.ClientId)
+	})
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	response := pb.LoginResponse{
-		Token: token,
+		Token:             token,
+		LastServerUpdated: lastServerUpdated,
 	}
 	return &response, nil
 }
@@ -116,9 +115,8 @@ func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	_ = user
+
 	dataUUID, created, err := s.dataHandler.CreateData(ctx, user, models.VaultData{
-		//UserUUID: user.UUID,
 		Meta:     req.Data.Meta,
 		DataType: req.Data.Type,
 		Data:     req.Data.Value,
@@ -127,36 +125,9 @@ func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	response := pb.SaveSecretResponse{
-		Uuid:    dataUUID,
-		Created: created.Unix(),
-	}
-	return &response, nil
-}
-
-func (s *VaultServer) GetSecret(ctx context.Context, req *pb.GetSecretRequest) (*pb.GetSecretResponse, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, status.Error(codes.InvalidArgument, "metadata is empty")
-	}
-	userFromContext := md.Get("user")
-	if len(userFromContext) == 0 {
-		return nil, status.Error(codes.InvalidArgument, "user is empty")
-	}
-	user, err := s.userHandler.GetUser(ctx, userFromContext[0])
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	data, err := s.dataHandler.GetData(ctx, user, req.Uuid)
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-	response := pb.GetSecretResponse{
-		Data: &pb.SecretData{
-			Uuid:  req.Uuid,
-			Meta:  data.Meta,
-			Type:  data.DataType,
-			Value: data.Data,
-		},
+		Uuid:              dataUUID,
+		Created:           created,
+		LastServerUpdated: created,
 	}
 	return &response, nil
 }
@@ -175,7 +146,7 @@ func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequ
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	_ = user
-	changed, err := s.dataHandler.ChangeData(ctx, user, models.VaultData{
+	updated, err := s.dataHandler.ChangeData(ctx, user, models.VaultData{
 		DataUUID: req.Data.Uuid,
 		Meta:     req.Data.Meta,
 		DataType: req.Data.Type,
@@ -185,7 +156,8 @@ func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequ
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	response := pb.ChangeSecretResponse{
-		Updated: changed.Unix(),
+		Updated:           updated,
+		LastServerUpdated: updated,
 	}
 	return &response, nil
 }
@@ -203,17 +175,20 @@ func (s *VaultServer) DeleteSecret(ctx context.Context, req *pb.DeleteSecretRequ
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	err = s.dataHandler.DeleteData(ctx, user, models.VaultData{
+	lastServerUpdated, err := s.dataHandler.DeleteData(ctx, user, models.VaultData{
 		DataUUID: req.Uuid,
 	})
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	response := pb.DeleteSecretResponse{}
+	response := pb.DeleteSecretResponse{
+		Uuid:              req.Uuid,
+		LastServerUpdated: lastServerUpdated,
+	}
 	return &response, nil
 }
 
-func (s *VaultServer) GetAllSecrets(ctx context.Context, req *pb.ListSecretsRequest) (*pb.ListSecretsResponse, error) {
+func (s *VaultServer) ListSecrets(ctx context.Context, req *pb.ListSecretsRequest) (*pb.ListSecretsResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.InvalidArgument, "metadata is empty")
@@ -226,12 +201,15 @@ func (s *VaultServer) GetAllSecrets(ctx context.Context, req *pb.ListSecretsRequ
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+	s.logger.Info("user", zap.Any("user", user))
 	data, err := s.dataHandler.GetAllData(ctx, user)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	var response pb.ListSecretsResponse
+	response.LastServerUpdated = user.LastServerUpdated
 	for _, d := range data {
+		s.logger.Info("data", zap.Any("data", d))
 		response.Data = append(response.Data, &pb.SecretData{
 			Uuid:  d.DataUUID,
 			Meta:  d.Meta,

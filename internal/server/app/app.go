@@ -2,15 +2,15 @@ package app
 
 import (
 	"context"
-	"github.com/h2p2f/dedicated-vault/internal/server/grpcserver/middlewares"
-
-	//"crypto/tls"
 	"github.com/h2p2f/dedicated-vault/internal/server/config"
 	"github.com/h2p2f/dedicated-vault/internal/server/grpcserver"
+	"github.com/h2p2f/dedicated-vault/internal/server/grpcserver/middlewares"
 	"github.com/h2p2f/dedicated-vault/internal/server/storage"
+	"github.com/h2p2f/dedicated-vault/internal/server/tlsloader"
 	pb "github.com/h2p2f/dedicated-vault/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"log"
 	"net"
 )
@@ -26,16 +26,15 @@ func Run(ctx context.Context) {
 
 	db := storage.NewStorage(ctx, conf, logger)
 
-	//cert, err := tls.LoadX509KeyPair("./crypto/public.crt", "./crypto/private.key")
-	//
-	//if err != nil {
-	//	panic(err)
-	//}
-	//
-	//opts := []grpc.ServerOption{
-	//	grpc.Creds(credentials.NewServerTLSFromCert(&cert)),
-	//}
-	var opts []grpc.ServerOption
+	tlsConf, err := tlsloader.LoadTLS()
+	if err != nil {
+		logger.Fatal("tls", zap.Error(err))
+	}
+	tlsCredentials := credentials.NewTLS(tlsConf)
+	opts := []grpc.ServerOption{
+		grpc.Creds(tlsCredentials),
+	}
+
 	unprotectedMethods := map[string]bool{
 		"/DedicatedVault/Register":       true,
 		"/DedicatedVault/Login":          true,

@@ -52,59 +52,77 @@ func (s *Storage) Close(ctx context.Context) error {
 	return nil
 }
 
-func (s *Storage) Register(ctx context.Context, user models.User, clientID string) (string, error) {
+func (s *Storage) UpdateLastServerUpdated(ctx context.Context, user models.User) error {
+	_, err := s.users.UpdateOne(ctx,
+		bson.D{{"login", user.Login}},
+		bson.D{{"$set", bson.D{{"lastServerUpdated", user.LastServerUpdated}}}})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Storage) Register(ctx context.Context, user models.User) (string, int64, error) {
 	var checkUser models.User
+	var token string
+	var lastServerUpdated int64
 	err := s.users.FindOne(ctx, bson.D{{"login", user.Login}}).Decode(&checkUser)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			uuidUser := uuid.New()
+			lastServerUpdated := time.Now().Unix()
 			encryptedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 			if err != nil {
-				return "", err
+				return token, lastServerUpdated, err
 			}
 			docUser := bson.D{
 				{"UUID", uuidUser.String()},
 				{"login", user.Login},
 				{"password", string(encryptedPassword)},
+				{"lastServerUpdated", lastServerUpdated},
 			}
 
 			_, err = s.users.InsertOne(ctx, docUser)
 			if err != nil {
-				return "", err
+				return token, lastServerUpdated, err
 			}
-			fmt.Println(uuidUser.String(), clientID, s.config.JWTKey)
-			token, err := jwtprocessing.GenerateToken(uuidUser.String(), clientID, s.config.JWTKey)
+			token, err = jwtprocessing.GenerateToken(uuidUser.String(), s.config.JWTKey)
 			fmt.Println(token)
 			if err != nil {
-				return "", err
+				return token, lastServerUpdated, err
 			}
-			return token, nil
+			return token, lastServerUpdated, nil
 		} else {
-			return "", err
+			return token, lastServerUpdated, err
 		}
 	}
-	return "", errors.New("user already exists")
+	return token, lastServerUpdated, errors.New("user already exists")
 }
 
-func (s *Storage) Login(ctx context.Context, user models.User, clientID string) (string, error) {
+func (s *Storage) Login(ctx context.Context, user models.User) (string, int64, error) {
 	var checkUser models.User
+	var token string
+	var lastServerUpdated int64
 	err := s.users.FindOne(ctx, bson.D{{"login", user.Login}}).Decode(&checkUser)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return "", errors.New("user not found")
+			return token, lastServerUpdated, errors.New("user not found")
 		} else {
-			return "", err
+			return token, lastServerUpdated, err
 		}
 	}
+	lastServerUpdated = checkUser.LastServerUpdated
 	err = bcrypt.CompareHashAndPassword([]byte(checkUser.Password), []byte(user.Password))
 	if err != nil {
-		return "", err
+		return token, lastServerUpdated, err
 	}
-	token, err := jwtprocessing.GenerateToken(checkUser.UUID, clientID, s.config.JWTKey)
+	token, err = jwtprocessing.GenerateToken(checkUser.UUID, s.config.JWTKey)
 	if err != nil {
-		return "", err
+		return token, lastServerUpdated, err
 	}
-	return token, nil
+	s.logger.Info("token", zap.String("token", token))
+	s.logger.Info("lastServerUpdated", zap.Int64("lastServerUpdated", lastServerUpdated))
+	return token, lastServerUpdated, nil
 }
 
 func (s *Storage) GetUser(ctx context.Context, user string) (models.User, error) {
@@ -144,7 +162,7 @@ func (s *Storage) ChangePassword(ctx context.Context, user models.User, newPassw
 	if err != nil {
 		return "", err
 	}
-	token, err := jwtprocessing.GenerateToken(checkUser.UUID, "", s.config.JWTKey)
+	token, err := jwtprocessing.GenerateToken(checkUser.UUID, s.config.JWTKey)
 	if err != nil {
 		return "", err
 	}
@@ -159,71 +177,75 @@ func (s *Storage) DeleteUser(ctx context.Context, user models.User) error {
 	return nil
 }
 
-func (s *Storage) CreateData(ctx context.Context, user models.User, data models.VaultData) (string, time.Time, error) {
+func (s *Storage) CreateData(ctx context.Context, user models.User, data models.VaultData) (string, int64, error) {
 	uuidData := uuid.New()
 	data.DataUUID = uuidData.String()
-	data.Created = time.Now()
-	doc := bson.D{
-		{"user", user.UUID},
-		{"data", data},
-	}
-	_, err := s.data.InsertOne(ctx, doc)
+	data.UserUUID = user.UUID
+	data.Created = time.Now().Unix()
+	doc, err := bson.Marshal(data)
 	if err != nil {
-		return "", time.Time{}, err
+		s.logger.Error("error while marshaling data", zap.Error(err))
 	}
+	_, err = s.data.InsertOne(ctx, doc)
+	if err != nil {
+		return "", 0, err
+	}
+	user.LastServerUpdated = data.Created
+	s.UpdateLastServerUpdated(ctx, user)
 	return data.DataUUID, data.Created, nil
 }
 
-func (s *Storage) GetData(ctx context.Context, user models.User, uuidData string) (models.VaultData, error) {
-	var data models.VaultData
-	err := s.data.FindOne(ctx,
-		bson.D{{"user", user.UUID}, {"data.dataUUID", uuidData}}).Decode(&data)
+func (s *Storage) ChangeData(ctx context.Context, user models.User, data models.VaultData) (int64, error) {
+	data.Updated = time.Now().Unix()
+	_, err := s.data.ReplaceOne(ctx,
+		bson.D{{"userUUID", user.UUID}, {"dataUUID", data.DataUUID}},
+		data)
 	if err != nil {
-		return models.VaultData{}, err
+		s.logger.Error("error while replacing data", zap.Error(err))
+		return 0, err
 	}
-	return data, nil
-}
-
-func (s *Storage) ChangeData(ctx context.Context, user models.User, data models.VaultData) (time.Time, error) {
-	data.Updated = time.Now()
-	_, err := s.data.UpdateOne(ctx,
-		bson.D{{"user", user.UUID}, {"data.dataUUID", data.DataUUID}},
-		bson.D{{"$set", bson.D{{"data", data}}}})
-	if err != nil {
-		return time.Time{}, err
-	}
+	user.LastServerUpdated = data.Updated
+	s.UpdateLastServerUpdated(ctx, user)
 	return data.Updated, nil
 }
 
 func (s *Storage) GetAllData(ctx context.Context, user models.User) ([]models.VaultData, error) {
+	s.logger.Info("preparing to get all data")
 	var data []models.VaultData
-	cur, err := s.data.Find(ctx, bson.D{{"user", user.UUID}})
+
+	filter := bson.D{
+		{"userUUID", user.UUID},
+	}
+
+	cur, err := s.data.Find(ctx, filter)
+
 	if err != nil {
 		return nil, err
 	}
+
 	for cur.Next(ctx) {
-		var elem struct {
-			user string
-			models.VaultData
-		}
+		var elem models.VaultData
 		err := cur.Decode(&elem)
 		if err != nil {
 			return nil, err
 		}
-		data = append(data, elem.VaultData)
+		data = append(data, elem)
 	}
-	if err := cur.Err(); err != nil {
+
+	err = cur.Close(ctx)
+	if err != nil {
 		return nil, err
 	}
-	cur.Close(ctx)
 	return data, nil
 }
 
-func (s *Storage) DeleteData(ctx context.Context, user models.User, data models.VaultData) error {
+func (s *Storage) DeleteData(ctx context.Context, user models.User, data models.VaultData) (int64, error) {
+
 	_, err := s.data.DeleteOne(ctx,
 		bson.D{{"user", user.UUID}, {"data.dataUUID", data.DataUUID}})
 	if err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	user.LastServerUpdated = time.Now().Unix()
+	return user.LastServerUpdated, nil
 }

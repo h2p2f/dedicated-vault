@@ -16,15 +16,14 @@ import (
 )
 
 type Processor interface {
-	CreateUser(userName, password, passphrase string) error
-	LoginUser(userName, password, passphrase string) error
-	ChangePassword(userName, password, newPassword string) error
-	SaveData(data models.Data) error
-	ChangeData(data models.Data) error
-	DeleteData(data models.Data) error
-	GetData(uuid string) (*models.Data, error)
+	CreateUser(ctx context.Context, userName, password, passphrase string) error
+	LoginUser(ctx context.Context, userName, password, passphrase string) error
+	ChangePassword(ctx context.Context, userName, password, newPassword string) error
+	SaveData(ctx context.Context, data models.Data) error
+	ChangeData(ctx context.Context, data models.Data) error
+	DeleteData(ctx context.Context, data models.Data) error
 	GetDataByType(dataType string) ([]models.Data, error)
-	FullSync() error
+	FullSync(ctx context.Context) error
 }
 
 type GraphicApp struct {
@@ -34,6 +33,7 @@ type GraphicApp struct {
 	mainWindow  fyne.Window
 	notLoggedIn func()
 	lostData    func()
+	dialogErr   func(err error)
 }
 
 func NewGraphicApp(proc Processor, conf *config.ClientConfig) *GraphicApp {
@@ -59,14 +59,18 @@ func (g *GraphicApp) Run(ctx context.Context) {
 		dialog.ShowInformation("Error", "You lost your data", g.mainWindow)
 	}
 
+	g.dialogErr = func(err error) {
+		dialog.ShowInformation("Error", err.Error(), g.mainWindow)
+	}
+
 	img := canvas.NewImageFromFile("img/logo.png")
 	img.FillMode = canvas.ImageFillOriginal
 
-	userBox := g.settingsTab()
-	crList, crBox := g.credentialTab()
-	ccList, ccBox := g.creditCardTab()
-	txList, txBox := g.textTab()
-	biList, biBox := g.binaryTab()
+	userBox := g.settingsTab(ctx)
+	crList, crBox := g.credentialTab(ctx)
+	ccList, ccBox := g.creditCardTab(ctx)
+	txList, txBox := g.textTab(ctx)
+	biList, biBox := g.binaryTab(ctx)
 
 	//_ = settingsBox
 
@@ -113,7 +117,6 @@ func (g *GraphicApp) Run(ctx context.Context) {
 			container.NewHBox(widget.NewLabel("Dedicated Vault"),
 				container.NewVBox(
 					widget.NewLabel("created by github.com/h2p2f"),
-					img,
 					widget.NewLabel("Version 0.0.1"),
 				),
 			))

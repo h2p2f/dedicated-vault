@@ -1,15 +1,15 @@
 package gui
 
 import (
-	"fmt"
+	"context"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
 )
 
-func (g *GraphicApp) textTab() (*widget.List, *fyne.Container) {
-
+func (g *GraphicApp) textTab(ctx context.Context) (*widget.List, *fyne.Container) {
+	var err error
 	// declare text area's widgets
 	textLabel := widget.NewLabel("Text details:")
 	textMeta := widget.NewLabel("Meta:")
@@ -21,10 +21,9 @@ func (g *GraphicApp) textTab() (*widget.List, *fyne.Container) {
 	textUUIDLabel.Hide()
 
 	//get text list
-	listData, err := g.processor.GetDataByType("tx")
-	if err != nil {
-		fmt.Println(err)
-	}
+	//error not handled because it called on startup
+	//user may not be logged in
+	listData, _ := g.processor.GetDataByType("tx")
 
 	// construct text list
 	textList := widget.NewList(
@@ -49,6 +48,7 @@ func (g *GraphicApp) textTab() (*widget.List, *fyne.Container) {
 		g.notLoggedIn()
 		listData, err = g.processor.GetDataByType("tx")
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		textList.Refresh()
@@ -66,8 +66,9 @@ func (g *GraphicApp) textTab() (*widget.List, *fyne.Container) {
 			DataType: "tx",
 			Folder:   models.Folder{Text: models.TextData{Text: textContentEntry.Text}},
 		}
-		err := g.processor.SaveData(data)
+		err := g.processor.SaveData(ctx, data)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -86,8 +87,9 @@ func (g *GraphicApp) textTab() (*widget.List, *fyne.Container) {
 			Meta:   textMetaEntry.Text,
 			Folder: models.Folder{Text: models.TextData{Text: textContentEntry.Text}},
 		}
-		err := g.processor.ChangeData(data)
+		err := g.processor.ChangeData(ctx, data)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
@@ -106,8 +108,9 @@ func (g *GraphicApp) textTab() (*widget.List, *fyne.Container) {
 			Meta:   textMetaEntry.Text,
 			Folder: models.Folder{Text: models.TextData{Text: textContentEntry.Text}},
 		}
-		err := g.processor.DeleteData(data)
+		err := g.processor.DeleteData(ctx, data)
 		if err != nil {
+			g.dialogErr(err)
 			return
 		}
 		r := refresh
