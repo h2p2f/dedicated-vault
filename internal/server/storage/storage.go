@@ -191,7 +191,10 @@ func (s *Storage) CreateData(ctx context.Context, user models.User, data models.
 		return "", 0, err
 	}
 	user.LastServerUpdated = data.Created
-	s.UpdateLastServerUpdated(ctx, user)
+	err = s.UpdateLastServerUpdated(ctx, user)
+	if err != nil {
+		return "", 0, err
+	}
 	return data.DataUUID, data.Created, nil
 }
 
@@ -205,7 +208,10 @@ func (s *Storage) ChangeData(ctx context.Context, user models.User, data models.
 		return 0, err
 	}
 	user.LastServerUpdated = data.Updated
-	s.UpdateLastServerUpdated(ctx, user)
+	err = s.UpdateLastServerUpdated(ctx, user)
+	if err != nil {
+		return 0, err
+	}
 	return data.Updated, nil
 }
 

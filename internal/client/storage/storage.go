@@ -139,7 +139,12 @@ func (s *ClientStorage) GetData(user string) ([]models.StoredData, error) {
 		s.logger.Error("failed to select data", zap.Error(err))
 		return nil, err
 	}
-	defer rows.Close()
+	defer func(rows *sql.Rows) {
+		err := rows.Close()
+		if err != nil {
+			s.logger.Error("failed to close rows", zap.Error(err))
+		}
+	}(rows)
 	var data []models.StoredData
 	for rows.Next() {
 		var d models.StoredData
