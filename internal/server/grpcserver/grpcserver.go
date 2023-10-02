@@ -2,7 +2,6 @@ package grpcserver
 
 import (
 	"context"
-	"fmt"
 	"github.com/h2p2f/dedicated-vault/internal/server/models"
 	pb "github.com/h2p2f/dedicated-vault/proto"
 	"go.uber.org/zap"
@@ -17,7 +16,6 @@ type UserHandler interface {
 	Login(ctx context.Context, user models.User) (string, int64, error)
 	GetUser(ctx context.Context, user string) (models.User, error)
 	ChangePassword(ctx context.Context, user models.User, newPassword string) (string, error)
-	DeleteUser(ctx context.Context, user models.User) error
 }
 
 //go:generate mockery --name DataHandler --output ./mocks --filename mocks_datahandler.go
@@ -45,6 +43,7 @@ func NewVaultServer(uh UserHandler, dh DataHandler, logger *zap.Logger) *VaultSe
 func (s *VaultServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 
 	if req.User.Name == "" || req.User.Password == "" {
+		s.logger.Error("login or password is empty", zap.Any("user", req.User))
 		return nil, status.Error(codes.InvalidArgument, "login or password is empty")
 	}
 	token, lastServerUpdated, err := s.userHandler.Register(ctx, models.User{
@@ -52,6 +51,7 @@ func (s *VaultServer) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 		Password: req.User.Password,
 	})
 	if err != nil {
+		s.logger.Error("error registering user", zap.Any("user", req.User), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -59,11 +59,13 @@ func (s *VaultServer) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 		Token:             token,
 		LastServerUpdated: lastServerUpdated,
 	}
+	s.logger.Info("registered user", zap.Any("user", req.User))
 	return &response, nil
 }
 
 func (s *VaultServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	if req.User.Name == "" || req.User.Password == "" {
+		s.logger.Error("login or password is empty", zap.Any("user", req.User))
 		return nil, status.Error(codes.InvalidArgument, "login or password is empty")
 	}
 
@@ -72,6 +74,7 @@ func (s *VaultServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		Password: req.User.Password,
 	})
 	if err != nil {
+		s.logger.Error("error logging in user", zap.Any("user", req.User), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -79,11 +82,13 @@ func (s *VaultServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 		Token:             token,
 		LastServerUpdated: lastServerUpdated,
 	}
+	s.logger.Info("logged in user", zap.Any("user", req.User))
 	return &response, nil
 }
 
 func (s *VaultServer) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.ChangePasswordResponse, error) {
-	if req.User.Name == "" || req.User.Password == "" {
+	if req.User.Name == "" || req.User.Password == "" || req.NewPassword == "" {
+		s.logger.Error("login or password is empty", zap.Any("user", req.User))
 		return nil, status.Error(codes.InvalidArgument, "login or password is empty")
 	}
 
@@ -92,27 +97,35 @@ func (s *VaultServer) ChangePassword(ctx context.Context, req *pb.ChangePassword
 		Password: req.User.Password,
 	}, req.NewPassword)
 	if err != nil {
+		s.logger.Error("error changing password", zap.Any("user", req.User), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	response := pb.ChangePasswordResponse{
 		Token: token,
 	}
+	s.logger.Info("changed password", zap.Any("user", req.User))
 	return &response, nil
 }
 
 func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest) (*pb.SaveSecretResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
+		s.logger.Error("metadata is empty")
 		return nil, status.Error(codes.InvalidArgument, "metadata is empty")
 	}
 	userFromContext := md.Get("user")
-	fmt.Println(userFromContext)
 	if len(userFromContext) == 0 {
+		s.logger.Error("userFromContext is empty")
+		return nil, status.Error(codes.InvalidArgument, "user is empty")
+	}
+	if userFromContext[0] == "" {
+		s.logger.Error("user is empty")
 		return nil, status.Error(codes.InvalidArgument, "user is empty")
 	}
 	user, err := s.userHandler.GetUser(ctx, userFromContext[0])
 	if err != nil {
+		s.logger.Error("error getting user", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
@@ -122,6 +135,7 @@ func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest)
 		Data:     req.Data.Value,
 	})
 	if err != nil {
+		s.logger.Error("error creating data", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	response := pb.SaveSecretResponse{
@@ -135,14 +149,21 @@ func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest)
 func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequest) (*pb.ChangeSecretResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
+		s.logger.Error("metadata is empty")
 		return nil, status.Error(codes.InvalidArgument, "metadata is empty")
 	}
 	userFromContext := md.Get("user")
 	if len(userFromContext) == 0 {
+		s.logger.Error("userFromContext is empty")
+		return nil, status.Error(codes.InvalidArgument, "user is empty")
+	}
+	if userFromContext[0] == "" {
+		s.logger.Error("user is empty")
 		return nil, status.Error(codes.InvalidArgument, "user is empty")
 	}
 	user, err := s.userHandler.GetUser(ctx, userFromContext[0])
 	if err != nil {
+		s.logger.Error("error getting user", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	_ = user
@@ -153,6 +174,7 @@ func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequ
 		Data:     req.Data.Value,
 	})
 	if err != nil {
+		s.logger.Error("error changing data", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	response := pb.ChangeSecretResponse{
@@ -165,20 +187,28 @@ func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequ
 func (s *VaultServer) DeleteSecret(ctx context.Context, req *pb.DeleteSecretRequest) (*pb.DeleteSecretResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
+		s.logger.Error("metadata is empty")
 		return nil, status.Error(codes.InvalidArgument, "metadata is empty")
 	}
 	userFromContext := md.Get("user")
 	if len(userFromContext) == 0 {
+		s.logger.Error("userFromContext is empty")
+		return nil, status.Error(codes.InvalidArgument, "user is empty")
+	}
+	if userFromContext[0] == "" {
+		s.logger.Error("user is empty")
 		return nil, status.Error(codes.InvalidArgument, "user is empty")
 	}
 	user, err := s.userHandler.GetUser(ctx, userFromContext[0])
 	if err != nil {
+		s.logger.Error("error getting user", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	lastServerUpdated, err := s.dataHandler.DeleteData(ctx, user, models.VaultData{
 		DataUUID: req.Uuid,
 	})
 	if err != nil {
+		s.logger.Error("error deleting data", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	response := pb.DeleteSecretResponse{
@@ -191,19 +221,26 @@ func (s *VaultServer) DeleteSecret(ctx context.Context, req *pb.DeleteSecretRequ
 func (s *VaultServer) ListSecrets(ctx context.Context, req *pb.ListSecretsRequest) (*pb.ListSecretsResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
+		s.logger.Error("metadata is empty")
 		return nil, status.Error(codes.InvalidArgument, "metadata is empty")
 	}
 	userFromContext := md.Get("user")
 	if len(userFromContext) == 0 {
+		s.logger.Error("userFromContext is empty")
+		return nil, status.Error(codes.InvalidArgument, "user is empty")
+	}
+	if userFromContext[0] == "" {
+		s.logger.Error("user is empty")
 		return nil, status.Error(codes.InvalidArgument, "user is empty")
 	}
 	user, err := s.userHandler.GetUser(ctx, userFromContext[0])
 	if err != nil {
+		s.logger.Error("error getting user", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	s.logger.Info("user", zap.Any("user", user))
 	data, err := s.dataHandler.GetAllData(ctx, user)
 	if err != nil {
+		s.logger.Error("error getting data", zap.Any("user", userFromContext[0]), zap.Error(err))
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	var response pb.ListSecretsResponse
@@ -217,5 +254,6 @@ func (s *VaultServer) ListSecrets(ctx context.Context, req *pb.ListSecretsReques
 			Value: d.Data,
 		})
 	}
+	_ = req
 	return &response, nil
 }

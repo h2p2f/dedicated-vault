@@ -26,8 +26,13 @@ type Processor interface {
 	FullSync(ctx context.Context) error
 }
 
+type Updater interface {
+	FullSync(ctx context.Context, p Processor) error
+}
+
 type GraphicApp struct {
 	processor   Processor
+	updater     Updater
 	config      *config.ClientConfig
 	guiApp      fyne.App
 	mainWindow  fyne.Window

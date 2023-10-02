@@ -19,12 +19,11 @@ type ClientConfig struct {
 }
 
 func NewClientConfig() *ClientConfig {
-	var dbPath string
+	dbPath := "/tmp/vault.db"
 	if runtime.GOOS == "windows" {
 		dbPath = "C:\\Users\\Public\\vault.db"
-	} else {
-		dbPath = "/tmp/vault.db"
 	}
+
 	return &ClientConfig{
 		StorageAddress: "localhost:8090",
 		DBPath:         dbPath,

@@ -35,9 +35,14 @@ type Transporter interface {
 	DeleteSecret(ctx context.Context, uuid string) error
 	ListSecrets(ctx context.Context) ([]*pb.SecretData, error)
 }
+
+type Updater interface {
+	FullSync(ctx context.Context) error
+}
 type ClientUseCase struct {
 	Storage     Storager
 	Transporter Transporter
+	Update      Updater
 	Config      *config.ClientConfig
 }
 
@@ -54,7 +59,7 @@ func (c *ClientUseCase) CreateUser(ctx context.Context, userName, password, pass
 	if err != nil {
 		return err
 	}
-	c.Config.Passphrase = passphrase
+
 	user := &pb.User{
 		Name:     userName,
 		Password: password,
@@ -65,6 +70,7 @@ func (c *ClientUseCase) CreateUser(ctx context.Context, userName, password, pass
 	}
 	c.Config.Token = token
 	c.Config.User = userName
+	c.Config.Passphrase = passphrase
 	err = c.Storage.UpdateLastServerUpdated(userName, c.Config.LastServerUpdated)
 	if err != nil {
 		return err
@@ -73,17 +79,6 @@ func (c *ClientUseCase) CreateUser(ctx context.Context, userName, password, pass
 }
 
 func (c *ClientUseCase) LoginUser(ctx context.Context, userName, password, passphrase string) error {
-
-	_, err := c.Storage.GetUserID(userName)
-	if err != nil && errors.Is(err, sql.ErrNoRows) {
-		err = c.Storage.CreateUser(userName)
-		if err != nil {
-			return err
-		}
-	}
-	c.Config.Passphrase = passphrase
-	c.Config.User = userName
-
 	user := &pb.User{
 		Name:     userName,
 		Password: password,
@@ -92,6 +87,22 @@ func (c *ClientUseCase) LoginUser(ctx context.Context, userName, password, passp
 	if err != nil {
 		return err
 	}
+
+	_, err = c.Storage.GetUserID(userName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err = c.Storage.CreateUser(userName)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+	c.Config.Passphrase = passphrase
+	c.Config.User = userName
+	c.Config.Token = token
+
 	dbLastServerUpdated, err := c.Storage.GetLastServerUpdated(userName)
 	if err != nil {
 		return err
@@ -102,7 +113,7 @@ func (c *ClientUseCase) LoginUser(ctx context.Context, userName, password, passp
 			return err
 		}
 	}
-	c.Config.Token = token
+
 	err = c.Storage.UpdateLastServerUpdated(userName, c.Config.LastServerUpdated)
 	if err != nil {
 		return err

@@ -16,7 +16,8 @@ func LoadTLS() (credentials.TransportCredentials, error) {
 	if !certPool.AppendCertsFromPEM(caPem) {
 		return nil, err
 	}
-	clientCert, err := tls.LoadX509KeyPair("./crypto/client-cert.pem", "./crypto/client-key.pem")
+	var clientCert tls.Certificate
+	clientCert, err = tls.LoadX509KeyPair("./crypto/client-cert.pem", "./crypto/client-key.pem")
 	if err != nil {
 		return nil, err
 	}

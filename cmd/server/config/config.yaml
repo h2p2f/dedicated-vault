@@ -1,0 +1,6 @@
+log_level: info
+grpc_address: localhost:8090
+storage_address: mongodb://localhost:27017
+jwt_key: secret
+db_user: sonx
+db_password: qw140490
