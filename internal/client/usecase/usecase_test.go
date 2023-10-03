@@ -4,13 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
 	"github.com/h2p2f/dedicated-vault/internal/client/usecase/mocks"
 	pb "github.com/h2p2f/dedicated-vault/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 func TestClientUseCase_CreateUser(t *testing.T) {

@@ -1,21 +1,27 @@
+// Package: grpcclient
+// in this file we have grpc client
 package grpcclient
 
 import (
 	"context"
+
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
 	"github.com/h2p2f/dedicated-vault/internal/client/grpcclient/middlewares"
 	pb "github.com/h2p2f/dedicated-vault/proto"
-	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	//"google.golang.org/grpc/credentials"
 )
 
+// Client is a struct for grpc client
 type Client struct {
 	pb.DedicatedVaultClient
 	config *config.ClientConfig
 	logger *zap.Logger
 }
 
+// NewClient creates a new Client
 func NewClient(config *config.ClientConfig, logger *zap.Logger) *Client {
 	return &Client{
 		config: config,
@@ -23,6 +29,7 @@ func NewClient(config *config.ClientConfig, logger *zap.Logger) *Client {
 	}
 }
 
+// Connect connects to the server
 func (c *Client) Connect() (*grpc.ClientConn, error) {
 
 	opts := []grpc.DialOption{
@@ -37,6 +44,7 @@ func (c *Client) Connect() (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
+// Register registers a new user
 func (c *Client) Register(ctx context.Context, user *pb.User) (string, error) {
 	conn, err := c.Connect()
 	if err != nil {
@@ -58,6 +66,7 @@ func (c *Client) Register(ctx context.Context, user *pb.User) (string, error) {
 	return resp.Token, nil
 }
 
+// Login logs in a user
 func (c *Client) Login(ctx context.Context, user *pb.User) (string, error) {
 	conn, err := c.Connect()
 	if err != nil {
@@ -78,6 +87,7 @@ func (c *Client) Login(ctx context.Context, user *pb.User) (string, error) {
 	return resp.Token, nil
 }
 
+// ChangePassword changes password for a user
 func (c *Client) ChangePassword(ctx context.Context, user *pb.User, newPassword string) (string, error) {
 	resp, err := c.DedicatedVaultClient.ChangePassword(ctx, &pb.ChangePasswordRequest{
 		User:        user,
@@ -90,6 +100,7 @@ func (c *Client) ChangePassword(ctx context.Context, user *pb.User, newPassword 
 	return resp.Token, nil
 }
 
+// SaveSecret gets a secret
 func (c *Client) SaveSecret(ctx context.Context, data *pb.SecretData) error {
 	conn, err := c.Connect()
 	if err != nil {
@@ -109,6 +120,7 @@ func (c *Client) SaveSecret(ctx context.Context, data *pb.SecretData) error {
 	return nil
 }
 
+// ChangeSecret gets a secret
 func (c *Client) ChangeSecret(ctx context.Context, data *pb.SecretData) error {
 	conn, err := c.Connect()
 	if err != nil {
@@ -128,6 +140,7 @@ func (c *Client) ChangeSecret(ctx context.Context, data *pb.SecretData) error {
 	return nil
 }
 
+// DeleteSecret gets a secret
 func (c *Client) DeleteSecret(ctx context.Context, uuid string) error {
 	conn, err := c.Connect()
 	if err != nil {
@@ -147,6 +160,7 @@ func (c *Client) DeleteSecret(ctx context.Context, uuid string) error {
 	return nil
 }
 
+// ListSecrets gets a secret
 func (c *Client) ListSecrets(ctx context.Context) ([]*pb.SecretData, error) {
 	conn, err := c.Connect()
 	if err != nil {

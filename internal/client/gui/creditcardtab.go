@@ -2,12 +2,23 @@ package gui
 
 import (
 	"context"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
+
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
 )
 
+/*
+strongly need to refactor this code
+it's too long, hard to read and understand
+but it's not simple to do - a lot of dependencies of GUI's struct, so it's hard to split it
+one more thing - the fyne library has a lot of callbacks, so it's hard to split it too
+one of the solutions is to use some kind of dependency injection in the future
+*/
+
+// creditCardTab - function for creating credential tab
 func (g *GraphicApp) creditCardTab(ctx context.Context) (*widget.List, *fyne.Container) {
 	var err error
 	// declare credit card area's widgets

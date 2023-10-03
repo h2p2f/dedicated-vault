@@ -3,12 +3,13 @@ package tlsloader
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"google.golang.org/grpc/credentials"
 	"os"
+
+	"google.golang.org/grpc/credentials"
 )
 
-func LoadTLS() (credentials.TransportCredentials, error) {
-	caPem, err := os.ReadFile("./crypto/ca-cert.pem")
+func LoadTLS(ca, cert, key string) (credentials.TransportCredentials, error) {
+	caPem, err := os.ReadFile(ca)
 	if err != nil {
 		return nil, err
 	}
@@ -17,7 +18,7 @@ func LoadTLS() (credentials.TransportCredentials, error) {
 		return nil, err
 	}
 	var clientCert tls.Certificate
-	clientCert, err = tls.LoadX509KeyPair("./crypto/client-cert.pem", "./crypto/client-key.pem")
+	clientCert, err = tls.LoadX509KeyPair(cert, key)
 	if err != nil {
 		return nil, err
 	}

@@ -1,19 +1,25 @@
+// Package: jwtprocessing
+// generating and parsing jwt token
 package jwtprocessing
 
 import (
-	"github.com/golang-jwt/jwt/v4"
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
 )
 
+// Claims - jwt claims
 type Claims struct {
 	jwt.RegisteredClaims
 	Login string
 }
 
+// TOKENEXPIRES - token expires time
 const (
 	TOKENEXPIRES = 240 * time.Hour
 )
 
+// GenerateToken - generate token
 func GenerateToken(login, key string) (string, error) {
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{

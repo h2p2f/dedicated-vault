@@ -1,21 +1,29 @@
+// Package storage
+// in this file we have storage for users and data
+// in this implementation we use mongoDB
 package storage
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/google/uuid"
-	"github.com/h2p2f/dedicated-vault/internal/server/config"
-	"github.com/h2p2f/dedicated-vault/internal/server/jwtprocessing"
-	"github.com/h2p2f/dedicated-vault/internal/server/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
-	"time"
+
+	"github.com/h2p2f/dedicated-vault/internal/server/config"
+	"github.com/h2p2f/dedicated-vault/internal/server/jwtprocessing"
+	"github.com/h2p2f/dedicated-vault/internal/server/models"
+	"github.com/h2p2f/dedicated-vault/internal/server/servererrors"
 )
 
+// Storage is a struct for storage
+// it contains different collections for users and data for possible future storage separation
 type Storage struct {
 	users  *mongo.Collection
 	data   *mongo.Collection
@@ -23,6 +31,7 @@ type Storage struct {
 	logger *zap.Logger
 }
 
+// NewStorage creates a new Storage
 func NewStorage(ctx context.Context, config *config.ServerConfig, logger *zap.Logger) *Storage {
 	var storage Storage
 
@@ -45,6 +54,7 @@ func NewStorage(ctx context.Context, config *config.ServerConfig, logger *zap.Lo
 	return &storage
 }
 
+// Close closes the connection to the database
 func (s *Storage) Close(ctx context.Context) error {
 	if err := s.users.Database().Client().Disconnect(ctx); err != nil {
 		s.logger.Error("error while disconnecting from database", zap.Error(err))
@@ -53,6 +63,7 @@ func (s *Storage) Close(ctx context.Context) error {
 	return nil
 }
 
+// UpdateLastServerUpdated updates the lastServerUpdated field in the user collection
 func (s *Storage) UpdateLastServerUpdated(ctx context.Context, user models.User) error {
 	_, err := s.users.UpdateOne(ctx,
 		bson.D{{"login", user.Login}},
@@ -64,60 +75,56 @@ func (s *Storage) UpdateLastServerUpdated(ctx context.Context, user models.User)
 	return nil
 }
 
+// Register registers a new user
 func (s *Storage) Register(ctx context.Context, user models.User) (string, int64, error) {
 	var checkUser models.User
 	var token string
 	var lastServerUpdated int64
 	err := s.users.FindOne(ctx, bson.D{{"login", user.Login}}).Decode(&checkUser)
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			uuidUser := uuid.New()
-			lastServerUpdated := time.Now().Unix()
-			encryptedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
-			if err != nil {
-				s.logger.Error("error while encrypting password", zap.Error(err))
-				return token, lastServerUpdated, err
-			}
-			docUser := bson.D{
-				{"UUID", uuidUser.String()},
-				{"login", user.Login},
-				{"password", string(encryptedPassword)},
-				{"lastServerUpdated", lastServerUpdated},
-			}
-
-			_, err = s.users.InsertOne(ctx, docUser)
-			if err != nil {
-				s.logger.Error("error while inserting user", zap.Error(err))
-				return token, lastServerUpdated, err
-			}
-			token, err = jwtprocessing.GenerateToken(uuidUser.String(), s.config.JWTKey)
-			fmt.Println(token)
-			if err != nil {
-				s.logger.Error("error while generating token", zap.Error(err))
-				return token, lastServerUpdated, err
-			}
-			return token, lastServerUpdated, nil
-		} else {
-			s.logger.Error("error while finding user", zap.Error(err))
-			return token, lastServerUpdated, err
-		}
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+		s.logger.Error("error while finding user", zap.Error(err))
+		return token, lastServerUpdated, err
 	}
-	return token, lastServerUpdated, errors.New("user already exists")
+	if checkUser.Login != "" {
+		s.logger.Error("user already exists", zap.Error(err))
+		return token, lastServerUpdated, servererrors.UserAlreadyExists
+	}
+
+	uuidUser := uuid.New()
+	lastServerUpdated = time.Now().Unix()
+	encryptedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.Error("error while encrypting password", zap.Error(err))
+		return token, lastServerUpdated, err
+	}
+	docUser := bson.D{
+		{"UUID", uuidUser.String()},
+		{"login", user.Login},
+		{"password", string(encryptedPassword)},
+		{"lastServerUpdated", lastServerUpdated}}
+	_, err = s.users.InsertOne(ctx, docUser)
+	if err != nil {
+		s.logger.Error("error while inserting user", zap.Error(err))
+		return token, lastServerUpdated, err
+	}
+	token, err = jwtprocessing.GenerateToken(uuidUser.String(), s.config.JWTKey)
+	fmt.Println(token)
+	if err != nil {
+		s.logger.Error("error while generating token", zap.Error(err))
+		return token, lastServerUpdated, err
+	}
+	return token, lastServerUpdated, nil
 }
 
+// Login logs in a user
 func (s *Storage) Login(ctx context.Context, user models.User) (string, int64, error) {
 	var checkUser models.User
 	var token string
 	var lastServerUpdated int64
 	err := s.users.FindOne(ctx, bson.D{{"login", user.Login}}).Decode(&checkUser)
-	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			s.logger.Error("error while finding user", zap.Error(err))
-			return token, lastServerUpdated, errors.New("user not found")
-		} else {
-			s.logger.Error("error while finding user", zap.Error(err))
-			return token, lastServerUpdated, err
-		}
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		s.logger.Error("error while finding user", zap.Error(err))
+		return token, lastServerUpdated, servererrors.RecordNotFound
 	}
 	lastServerUpdated = checkUser.LastServerUpdated
 	err = bcrypt.CompareHashAndPassword([]byte(checkUser.Password), []byte(user.Password))
@@ -133,13 +140,14 @@ func (s *Storage) Login(ctx context.Context, user models.User) (string, int64, e
 	return token, lastServerUpdated, nil
 }
 
+// GetUser gets a user
 func (s *Storage) GetUser(ctx context.Context, user string) (models.User, error) {
 	var checkUser models.User
 	err := s.users.FindOne(ctx, bson.D{{"UUID", user}}).Decode(&checkUser)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			s.logger.Error("error while finding user", zap.Error(err))
-			return models.User{}, errors.New("user not found")
+			return models.User{}, servererrors.RecordNotFound
 		} else {
 			s.logger.Error("error while finding user", zap.Error(err))
 			return models.User{}, err
@@ -148,13 +156,14 @@ func (s *Storage) GetUser(ctx context.Context, user string) (models.User, error)
 	return checkUser, nil
 }
 
+// ChangePassword changes a user's password
 func (s *Storage) ChangePassword(ctx context.Context, user models.User, newPassword string) (string, error) {
 	var checkUser models.User
 	err := s.users.FindOne(ctx, bson.D{{"login", user.Login}}).Decode(&checkUser)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			s.logger.Error("error while finding user", zap.Error(err))
-			return "", errors.New("user not found")
+			return "", servererrors.RecordNotFound
 		} else {
 			s.logger.Error("error while finding user", zap.Error(err))
 			return "", err
@@ -185,6 +194,8 @@ func (s *Storage) ChangePassword(ctx context.Context, user models.User, newPassw
 	return token, nil
 }
 
+// DeleteUser deletes a user
+// Deprecated - not currently in use
 func (s *Storage) DeleteUser(ctx context.Context, user models.User) error {
 	_, err := s.users.DeleteOne(ctx, bson.D{{"login", user.Login}})
 	if err != nil {
@@ -194,6 +205,7 @@ func (s *Storage) DeleteUser(ctx context.Context, user models.User) error {
 	return nil
 }
 
+// CreateData creates secrets data
 func (s *Storage) CreateData(ctx context.Context, user models.User, data models.VaultData) (string, int64, error) {
 	uuidData := uuid.New()
 	data.DataUUID = uuidData.String()
@@ -217,6 +229,7 @@ func (s *Storage) CreateData(ctx context.Context, user models.User, data models.
 	return data.DataUUID, data.Created, nil
 }
 
+// ChangeData changes secrets data
 func (s *Storage) ChangeData(ctx context.Context, user models.User, data models.VaultData) (int64, error) {
 	data.Updated = time.Now().Unix()
 	_, err := s.data.ReplaceOne(ctx,
@@ -235,6 +248,7 @@ func (s *Storage) ChangeData(ctx context.Context, user models.User, data models.
 	return data.Updated, nil
 }
 
+// GetAllData gets all secrets data
 func (s *Storage) GetAllData(ctx context.Context, user models.User) ([]models.VaultData, error) {
 	var data []models.VaultData
 
@@ -243,6 +257,12 @@ func (s *Storage) GetAllData(ctx context.Context, user models.User) ([]models.Va
 	}
 
 	cur, err := s.data.Find(ctx, filter)
+	defer func(cur *mongo.Cursor, ctx context.Context) {
+		err := cur.Close(ctx)
+		if err != nil {
+			s.logger.Error("error while closing cursor", zap.Error(err))
+		}
+	}(cur, ctx)
 
 	if err != nil {
 		s.logger.Error("error while finding data", zap.Error(err))
@@ -259,14 +279,10 @@ func (s *Storage) GetAllData(ctx context.Context, user models.User) ([]models.Va
 		data = append(data, elem)
 	}
 
-	err = cur.Close(ctx)
-	if err != nil {
-		s.logger.Error("error while closing cursor", zap.Error(err))
-		return nil, err
-	}
 	return data, nil
 }
 
+// DeleteData deletes secrets data
 func (s *Storage) DeleteData(ctx context.Context, user models.User, data models.VaultData) (int64, error) {
 
 	_, err := s.data.DeleteOne(ctx,

@@ -1,15 +1,21 @@
+// Package grpcserver
+// handling grpc requests
 package grpcserver
 
 import (
 	"context"
-	"github.com/h2p2f/dedicated-vault/internal/server/models"
-	pb "github.com/h2p2f/dedicated-vault/proto"
+
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/h2p2f/dedicated-vault/internal/server/models"
+	pb "github.com/h2p2f/dedicated-vault/proto"
 )
 
+// UserHandler is an interface for user handling
+//
 //go:generate mockery --name UserHandler --output ./mocks --filename mocks_userhandler.go
 type UserHandler interface {
 	Register(ctx context.Context, user models.User) (string, int64, error)
@@ -18,6 +24,8 @@ type UserHandler interface {
 	ChangePassword(ctx context.Context, user models.User, newPassword string) (string, error)
 }
 
+// DataHandler is an interface for data handling
+//
 //go:generate mockery --name DataHandler --output ./mocks --filename mocks_datahandler.go
 type DataHandler interface {
 	CreateData(ctx context.Context, user models.User, data models.VaultData) (string, int64, error)
@@ -26,6 +34,7 @@ type DataHandler interface {
 	DeleteData(ctx context.Context, user models.User, data models.VaultData) (int64, error)
 }
 
+// VaultServer is a struct for handling grpc requests
 type VaultServer struct {
 	pb.UnimplementedDedicatedVaultServer
 	userHandler UserHandler
@@ -33,6 +42,7 @@ type VaultServer struct {
 	logger      *zap.Logger
 }
 
+// NewVaultServer creates a new VaultServer
 func NewVaultServer(uh UserHandler, dh DataHandler, logger *zap.Logger) *VaultServer {
 	return &VaultServer{
 		userHandler: uh,
@@ -40,6 +50,7 @@ func NewVaultServer(uh UserHandler, dh DataHandler, logger *zap.Logger) *VaultSe
 		logger:      logger}
 }
 
+// Register handles grpc requests for registering a user
 func (s *VaultServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 
 	if req.User.Name == "" || req.User.Password == "" {
@@ -63,6 +74,7 @@ func (s *VaultServer) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 	return &response, nil
 }
 
+// Login handles grpc requests for logging in a user
 func (s *VaultServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	if req.User.Name == "" || req.User.Password == "" {
 		s.logger.Error("login or password is empty", zap.Any("user", req.User))
@@ -86,6 +98,7 @@ func (s *VaultServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Logi
 	return &response, nil
 }
 
+// ChangePassword handles grpc requests for changing a user's password
 func (s *VaultServer) ChangePassword(ctx context.Context, req *pb.ChangePasswordRequest) (*pb.ChangePasswordResponse, error) {
 	if req.User.Name == "" || req.User.Password == "" || req.NewPassword == "" {
 		s.logger.Error("login or password is empty", zap.Any("user", req.User))
@@ -108,6 +121,7 @@ func (s *VaultServer) ChangePassword(ctx context.Context, req *pb.ChangePassword
 	return &response, nil
 }
 
+// SaveSecret handles grpc requests for saving a secret
 func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest) (*pb.SaveSecretResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -146,6 +160,7 @@ func (s *VaultServer) SaveSecret(ctx context.Context, req *pb.SaveSecretRequest)
 	return &response, nil
 }
 
+// ChangeSecret handles grpc requests for changing a secret
 func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequest) (*pb.ChangeSecretResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -184,6 +199,7 @@ func (s *VaultServer) ChangeSecret(ctx context.Context, req *pb.ChangeSecretRequ
 	return &response, nil
 }
 
+// DeleteSecret handles grpc requests for deleting a secret
 func (s *VaultServer) DeleteSecret(ctx context.Context, req *pb.DeleteSecretRequest) (*pb.DeleteSecretResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
@@ -218,6 +234,7 @@ func (s *VaultServer) DeleteSecret(ctx context.Context, req *pb.DeleteSecretRequ
 	return &response, nil
 }
 
+// ListSecrets handles grpc requests for secrets list
 func (s *VaultServer) ListSecrets(ctx context.Context, req *pb.ListSecretsRequest) (*pb.ListSecretsResponse, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {

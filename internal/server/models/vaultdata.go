@@ -1,7 +1,10 @@
+// Package: models
+// in this fale we have models for data
 package models
 
 import "go.mongodb.org/mongo-driver/bson/primitive"
 
+// VaultData is a struct for data
 type VaultData struct {
 	ID       primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
 	DataUUID string             `json:"data_uuid" bson:"dataUUID"`

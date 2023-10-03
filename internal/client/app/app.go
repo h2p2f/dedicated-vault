@@ -1,39 +1,41 @@
+// Package: app
+// in this file we have main logic for client
 package app
 
 import (
 	"context"
-	"crypto/sha256"
+
+	"go.uber.org/zap"
+
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
 	"github.com/h2p2f/dedicated-vault/internal/client/grpcclient"
 	"github.com/h2p2f/dedicated-vault/internal/client/gui"
 	"github.com/h2p2f/dedicated-vault/internal/client/storage"
 	"github.com/h2p2f/dedicated-vault/internal/client/tlsloader"
 	"github.com/h2p2f/dedicated-vault/internal/client/usecase"
-	"go.uber.org/zap"
 )
 
+// Run launches the main client logic
 func Run(ctx context.Context) {
 	var err error
-
+	// read configuration
 	conf := config.NewClientConfig()
 
-	Key := sha256.Sum256([]byte(conf.Passphrase))
-
-	conf.CryptoKey = Key[:]
-
+	// create logger
 	logger := zap.NewExample()
-
+	//
 	db := storage.NewClientStorage(logger, conf)
-
-	conf.TLSConfig, err = tlsloader.LoadTLS()
+	//load tls
+	conf.TLSConfig, err = tlsloader.LoadTLS(conf.ClientCA, conf.ClientCert, conf.ClientKey)
 	if err != nil {
 		logger.Fatal("tls", zap.Error(err))
 	}
-
+	// create grpc client
 	tr := grpcclient.NewClient(conf, logger)
 	uc := usecase.NewClientUseCase(conf, db, tr)
-
+	// create gui
 	guiApp := gui.NewGraphicApp(uc, conf)
 	guiApp.Run(ctx)
 
+	// i don't implement graceful shutdown because it's realized in gui
 }

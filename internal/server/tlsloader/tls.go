@@ -1,12 +1,17 @@
+// Package tlsloader
+// in this file loading tls certificates and keys
 package tlsloader
 
 import (
 	"crypto/tls"
 	"crypto/x509"
 	"os"
+
+	"github.com/h2p2f/dedicated-vault/internal/server/config"
 )
 
-func LoadTLS() (*tls.Config, error) {
+// LoadTLS - function for loading tls certificates and keys
+func LoadTLS(config *config.ServerConfig) (*tls.Config, error) {
 	caPem, err := os.ReadFile("./crypto/ca-cert.pem")
 	if err != nil {
 		return nil, err
@@ -15,7 +20,7 @@ func LoadTLS() (*tls.Config, error) {
 	if !certPool.AppendCertsFromPEM(caPem) {
 		return nil, err
 	}
-	serverCert, err := tls.LoadX509KeyPair("./crypto/server-cert.pem", "./crypto/server-key.pem")
+	serverCert, err := tls.LoadX509KeyPair(config.ServerCert, config.ServerKey)
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,14 @@
+// Package config
+// configuring the server, logging level, database
 package config
 
 import (
-	"gopkg.in/yaml.v3"
 	"os"
+
+	"gopkg.in/yaml.v3"
 )
 
+// ServerConfig - server configuration structure
 type ServerConfig struct {
 	LogLevel       string `yaml:"log_level"`
 	GRPCAddress    string `yaml:"grpc_address"`
@@ -12,8 +16,11 @@ type ServerConfig struct {
 	JWTKey         string `yaml:"jwt_key"`
 	DBUser         string `yaml:"db_user"`
 	DBPassword     string `yaml:"db_password"`
+	ServerCert     string `yaml:"server_cert"`
+	ServerKey      string `yaml:"server_key"`
 }
 
+// NewServerConfig - function of obtaining the server configuration, processes the yaml file
 func NewServerConfig() *ServerConfig {
 	config := ServerConfig{}
 

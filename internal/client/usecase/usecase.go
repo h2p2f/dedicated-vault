@@ -1,15 +1,20 @@
+// Package: usecase
+// in this file we have main logic for client usecase
 package usecase
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/h2p2f/dedicated-vault/internal/client/clienterrors"
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
 	pb "github.com/h2p2f/dedicated-vault/proto"
 )
 
+// Storager interface for working with storage
+//
 //go:generate mockery --name Storager --output ./mocks --filename mocks_storager.go
 type Storager interface {
 	CreateUser(userName string) error
@@ -25,6 +30,8 @@ type Storager interface {
 	GetLastServerUpdated(username string) (int64, error)
 }
 
+// Transporter interface for working with transporter
+//
 //go:generate mockery --name Transporter --output ./mocks --filename mocks_transporter.go
 type Transporter interface {
 	Register(ctx context.Context, user *pb.User) (string, error)
@@ -36,16 +43,14 @@ type Transporter interface {
 	ListSecrets(ctx context.Context) ([]*pb.SecretData, error)
 }
 
-type Updater interface {
-	FullSync(ctx context.Context) error
-}
+// ClientUseCase is a struct for client usecase
 type ClientUseCase struct {
 	Storage     Storager
 	Transporter Transporter
-	Update      Updater
 	Config      *config.ClientConfig
 }
 
+// NewClientUseCase creates a new ClientUseCase
 func NewClientUseCase(config *config.ClientConfig, storage Storager, transporter Transporter) *ClientUseCase {
 	return &ClientUseCase{
 		Config:      config,
@@ -54,12 +59,12 @@ func NewClientUseCase(config *config.ClientConfig, storage Storager, transporter
 	}
 }
 
+// CreateUser creates a new user
 func (c *ClientUseCase) CreateUser(ctx context.Context, userName, password, passphrase string) error {
 	err := c.Storage.CreateUser(userName)
 	if err != nil {
 		return err
 	}
-
 	user := &pb.User{
 		Name:     userName,
 		Password: password,
@@ -78,6 +83,7 @@ func (c *ClientUseCase) CreateUser(ctx context.Context, userName, password, pass
 	return nil
 }
 
+// LoginUser login user
 func (c *ClientUseCase) LoginUser(ctx context.Context, userName, password, passphrase string) error {
 	user := &pb.User{
 		Name:     userName,
@@ -89,16 +95,14 @@ func (c *ClientUseCase) LoginUser(ctx context.Context, userName, password, passp
 	}
 
 	_, err = c.Storage.GetUserID(userName)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			err = c.Storage.CreateUser(userName)
-			if err != nil {
-				return err
-			}
-		} else {
+
+	if errors.Is(err, clienterrors.UserNotFound) {
+		err = c.Storage.CreateUser(userName)
+		if err != nil {
 			return err
 		}
 	}
+
 	c.Config.Passphrase = passphrase
 	c.Config.User = userName
 	c.Config.Token = token
@@ -121,6 +125,7 @@ func (c *ClientUseCase) LoginUser(ctx context.Context, userName, password, passp
 	return nil
 }
 
+// ChangePassword changes user password
 func (c *ClientUseCase) ChangePassword(ctx context.Context, userName, password, newPassword string) error {
 	id, err := c.Storage.GetUserID(userName)
 	if err != nil {
@@ -143,6 +148,7 @@ func (c *ClientUseCase) ChangePassword(ctx context.Context, userName, password, 
 	return nil
 }
 
+// SaveData saves data
 func (c *ClientUseCase) SaveData(ctx context.Context, data models.Data) error {
 	if c.Config.Token == "" {
 		return fmt.Errorf("user not logged in")
@@ -173,6 +179,7 @@ func (c *ClientUseCase) SaveData(ctx context.Context, data models.Data) error {
 	return nil
 }
 
+// ChangeData changes data
 func (c *ClientUseCase) ChangeData(ctx context.Context, data models.Data) error {
 	if c.Config.Token == "" {
 		return fmt.Errorf("user not logged in")
@@ -202,6 +209,7 @@ func (c *ClientUseCase) ChangeData(ctx context.Context, data models.Data) error 
 	return nil
 }
 
+// DeleteData deletes data
 func (c *ClientUseCase) DeleteData(ctx context.Context, data models.Data) error {
 	if c.Config.Token == "" {
 		return fmt.Errorf("user not logged in")
@@ -223,6 +231,7 @@ func (c *ClientUseCase) DeleteData(ctx context.Context, data models.Data) error 
 	return nil
 }
 
+// GetDataByType gets data by type
 func (c *ClientUseCase) GetDataByType(dataType string) ([]models.Data, error) {
 	if c.Config.Token == "" {
 		return nil, fmt.Errorf("user not logged in")
@@ -244,6 +253,7 @@ func (c *ClientUseCase) GetDataByType(dataType string) ([]models.Data, error) {
 	return data, nil
 }
 
+// FullSync does full sync with remote server
 func (c *ClientUseCase) FullSync(ctx context.Context) error {
 	if c.Config.Token == "" {
 		return fmt.Errorf("user not logged in")

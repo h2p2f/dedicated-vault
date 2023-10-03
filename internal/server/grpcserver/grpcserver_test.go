@@ -3,16 +3,18 @@ package grpcserver
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/google/uuid"
-	"github.com/h2p2f/dedicated-vault/internal/server/grpcserver/mocks"
-	"github.com/h2p2f/dedicated-vault/internal/server/models"
-	pb "github.com/h2p2f/dedicated-vault/proto"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"testing"
-	"time"
+
+	"github.com/h2p2f/dedicated-vault/internal/server/grpcserver/mocks"
+	"github.com/h2p2f/dedicated-vault/internal/server/models"
+	pb "github.com/h2p2f/dedicated-vault/proto"
 )
 
 func TestVaultServer_Register(t *testing.T) {

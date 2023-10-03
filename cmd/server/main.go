@@ -1,11 +1,13 @@
+// Package main launches the main server logic
 package main
 
 import (
 	"context"
-	"github.com/h2p2f/dedicated-vault/internal/server/app"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/h2p2f/dedicated-vault/internal/server/app"
 )
 
 func main() {

@@ -4,3 +4,5 @@ storage_address: mongodb://localhost:27017
 jwt_key: secret
 db_user: sonx
 db_password: qw140490
+server_cert: ./crypto/server-cert.pem
+server_key: ./crypto/server-key.pem

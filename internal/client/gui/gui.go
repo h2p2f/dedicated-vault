@@ -1,7 +1,11 @@
+// Package: gui
+// in this file we have main logic for gui
 package gui
 
 import (
 	"context"
+	"time"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -10,11 +14,12 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+
 	"github.com/h2p2f/dedicated-vault/internal/client/config"
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
-	"time"
 )
 
+// Processor is an interface for processing data
 type Processor interface {
 	CreateUser(ctx context.Context, userName, password, passphrase string) error
 	LoginUser(ctx context.Context, userName, password, passphrase string) error
@@ -26,10 +31,12 @@ type Processor interface {
 	FullSync(ctx context.Context) error
 }
 
+// Updater is an interface for updating data
 type Updater interface {
 	FullSync(ctx context.Context, p Processor) error
 }
 
+// GraphicApp is a struct for gui application
 type GraphicApp struct {
 	processor   Processor
 	updater     Updater
@@ -41,6 +48,7 @@ type GraphicApp struct {
 	dialogErr   func(err error)
 }
 
+// NewGraphicApp creates a new GraphicApp
 func NewGraphicApp(proc Processor, conf *config.ClientConfig) *GraphicApp {
 	return &GraphicApp{
 		processor: proc,
@@ -49,6 +57,7 @@ func NewGraphicApp(proc Processor, conf *config.ClientConfig) *GraphicApp {
 	}
 }
 
+// Run launches the main gui logic
 func (g *GraphicApp) Run(ctx context.Context) {
 	guiApp := g.guiApp
 	g.mainWindow = guiApp.NewWindow("Dedicated Vault")
@@ -77,11 +86,6 @@ func (g *GraphicApp) Run(ctx context.Context) {
 	txList, txBox := g.textTab(ctx)
 	biList, biBox := g.binaryTab(ctx)
 
-	//_ = settingsBox
-
-	//settingsTabItem := container.NewTabItem("Settings", container.NewGridWithColumns(2,
-	//	userBox,
-	//))
 	settingsTabItem := container.NewTabItem("Settings", container.New(
 		layout.NewGridLayoutWithColumns(3),
 		container.New(layout.NewCenterLayout()),
@@ -122,7 +126,8 @@ func (g *GraphicApp) Run(ctx context.Context) {
 			container.NewHBox(widget.NewLabel("Dedicated Vault"),
 				container.NewVBox(
 					widget.NewLabel("created by github.com/h2p2f"),
-					widget.NewLabel("Version 0.0.1"),
+					widget.NewLabel("Version:"+g.config.Version),
+					widget.NewLabel("Build date: "+g.config.BuildDate),
 				),
 			))
 		splash.CenterOnScreen()

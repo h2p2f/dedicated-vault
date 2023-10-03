@@ -1,14 +1,21 @@
+// Package: storage
+// in this file we have client storage
+// in this implementation we use sqlite3
 package storage
 
 import (
 	"database/sql"
+
 	"github.com/google/uuid"
-	"github.com/h2p2f/dedicated-vault/internal/client/config"
-	"github.com/h2p2f/dedicated-vault/internal/client/models"
 	_ "github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
+
+	"github.com/h2p2f/dedicated-vault/internal/client/clienterrors"
+	"github.com/h2p2f/dedicated-vault/internal/client/config"
+	"github.com/h2p2f/dedicated-vault/internal/client/models"
 )
 
+// createTable is a query for creating tables
 const createTable = `
 
 CREATE TABLE IF NOT EXISTS data (
@@ -28,11 +35,13 @@ CREATE TABLE IF NOT EXISTS users (
     	);
 `
 
+// ClientStorage is a struct for client storage
 type ClientStorage struct {
 	db     *sql.DB
 	logger *zap.Logger
 }
 
+// NewClientStorage creates a new ClientStorage
 func NewClientStorage(logger *zap.Logger, config *config.ClientConfig) *ClientStorage {
 	db, err := sql.Open("sqlite3", config.DBPath)
 	if err != nil {
@@ -49,10 +58,12 @@ func NewClientStorage(logger *zap.Logger, config *config.ClientConfig) *ClientSt
 	}
 }
 
+// Close closes the database
 func (s *ClientStorage) Close() error {
 	return s.db.Close()
 }
 
+// GetLastServerUpdated gets the last server update time
 func (s *ClientStorage) GetLastServerUpdated(username string) (int64, error) {
 	row := s.db.QueryRow("SELECT last_updated FROM users WHERE username = ?", username)
 	var lastUpdated int64
@@ -64,6 +75,7 @@ func (s *ClientStorage) GetLastServerUpdated(username string) (int64, error) {
 	return lastUpdated, nil
 }
 
+// UpdateLastServerUpdated updates the last server update time
 func (s *ClientStorage) UpdateLastServerUpdated(username string, updateTime int64) error {
 	_, err := s.db.Exec("UPDATE users SET last_updated = ? WHERE username = ?", updateTime, username)
 	if err != nil {
@@ -73,6 +85,7 @@ func (s *ClientStorage) UpdateLastServerUpdated(username string, updateTime int6
 	return nil
 }
 
+// CreateUser creates a new user
 func (s *ClientStorage) CreateUser(userName string) error {
 	_, err := s.db.Exec("INSERT INTO users (username, last_updated) VALUES (?, ?)", userName, 0)
 	if err != nil {
@@ -82,19 +95,21 @@ func (s *ClientStorage) CreateUser(userName string) error {
 	return nil
 }
 
+// GetUserID gets the user id
 func (s *ClientStorage) GetUserID(userName string) (int64, error) {
 	row := s.db.QueryRow("SELECT id FROM users WHERE username = ?", userName)
 	var id int64
 	err := row.Scan(&id)
 	if err != nil {
 		s.logger.Error("failed to scan user", zap.Error(err))
-		return 0, err
+		return 0, clienterrors.UserNotFound
 	}
 
 	return id, nil
 
 }
 
+// CreateData creates new data
 func (s *ClientStorage) CreateData(user string, data models.StoredData) error {
 	id, err := s.GetUserID(user)
 	if err != nil || id == 0 {
@@ -111,6 +126,7 @@ func (s *ClientStorage) CreateData(user string, data models.StoredData) error {
 	return nil
 }
 
+// GetDataByUUID gets data by uuid
 func (s *ClientStorage) GetDataByUUID(user string, uuid string) (*models.StoredData, error) {
 	id, err := s.GetUserID(user)
 	if err != nil || id == 0 {
@@ -128,6 +144,7 @@ func (s *ClientStorage) GetDataByUUID(user string, uuid string) (*models.StoredD
 	return &data, nil
 }
 
+// GetData gets data
 func (s *ClientStorage) GetData(user string) ([]models.StoredData, error) {
 	id, err := s.GetUserID(user)
 	if err != nil || id == 0 {
@@ -158,6 +175,7 @@ func (s *ClientStorage) GetData(user string) ([]models.StoredData, error) {
 	return data, nil
 }
 
+// UpdateData updates data
 func (s *ClientStorage) UpdateData(user string, data models.StoredData) error {
 	id, err := s.GetUserID(user)
 	if err != nil || id == 0 {
@@ -173,6 +191,7 @@ func (s *ClientStorage) UpdateData(user string, data models.StoredData) error {
 	return nil
 }
 
+// DeleteData deletes data
 func (s *ClientStorage) DeleteData(user string, data models.StoredData) error {
 	id, err := s.GetUserID(user)
 	if err != nil || id == 0 {
@@ -188,6 +207,7 @@ func (s *ClientStorage) DeleteData(user string, data models.StoredData) error {
 	return nil
 }
 
+// DeleteAllData deletes all data
 func (s *ClientStorage) DeleteAllData(user string) error {
 	id, err := s.GetUserID(user)
 	if err != nil || id == 0 {
@@ -203,6 +223,9 @@ func (s *ClientStorage) DeleteAllData(user string) error {
 	return nil
 }
 
+// FindByMeta finds data by meta
+// this function wrote for feature "search"
+// Deprecated: currently not used
 func (s *ClientStorage) FindByMeta(user string, meta string) ([]models.StoredData, error) {
 	id, err := s.GetUserID(user)
 	if err != nil || id == 0 {

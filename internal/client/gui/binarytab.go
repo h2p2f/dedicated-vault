@@ -2,14 +2,25 @@ package gui
 
 import (
 	"context"
+	"io"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+
 	"github.com/h2p2f/dedicated-vault/internal/client/models"
-	"io"
 )
 
+/*
+strongly need to refactor this code
+it's too long, hard to read and understand
+but it's not simple to do - a lot of dependencies of GUI's struct, so it's hard to split it
+one more thing - the fyne library has a lot of callbacks, so it's hard to split it too
+one of the solutions is to use some kind of dependency injection in the future
+*/
+
+// binaryTab - function for creating binary tab
 func (g *GraphicApp) binaryTab(ctx context.Context) (*widget.List, *fyne.Container) {
 	var err error
 	var binaryData []byte
@@ -20,12 +31,16 @@ func (g *GraphicApp) binaryTab(ctx context.Context) (*widget.List, *fyne.Contain
 	binaryMetaEntry := widget.NewEntry()
 	binaryName := widget.NewLabel("Name:")
 	binaryNameEntry := widget.NewEntry()
+	binaryUUIDLabel := widget.NewLabel("")
+	binaryUUIDLabel.Hide()
+
 	loadButton := widget.NewButton("Load from disk", func() {
 		dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
 			binaryNameEntry.SetText(reader.URI().Name())
 			binaryData, err = io.ReadAll(reader)
 		}, g.mainWindow)
 	})
+
 	saveButton := widget.NewButton("Save to disk", func() {
 		dialog.ShowFileSave(func(writer fyne.URIWriteCloser, err error) {
 			_, err = writer.Write(binaryData)
@@ -33,11 +48,7 @@ func (g *GraphicApp) binaryTab(ctx context.Context) (*widget.List, *fyne.Contain
 		}, g.mainWindow)
 
 	})
-	binaryUUIDLabel := widget.NewLabel("")
-	binaryUUIDLabel.Hide()
 
-	//get binary list, error not handled because it called on startup
-	//user may not be logged in
 	listData, _ := g.processor.GetDataByType("bi")
 
 	// construct binary list

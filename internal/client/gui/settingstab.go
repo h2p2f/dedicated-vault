@@ -3,11 +3,21 @@ package gui
 import (
 	"context"
 	"errors"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 )
 
+/*
+strongly need to refactor this code
+it's too long, hard to read and understand
+but it's not simple to do - a lot of dependencies of GUI's struct, so it's hard to split it
+one more thing - the fyne library has a lot of callbacks, so it's hard to split it too
+one of the solutions is to use some kind of dependency injection in the future
+*/
+
+// settingsTab - function for creating settings tab
 func (g *GraphicApp) settingsTab(ctx context.Context) *fyne.Container {
 
 	LoginLabel := widget.NewLabel("Login")
@@ -30,6 +40,19 @@ func (g *GraphicApp) settingsTab(ctx context.Context) *fyne.Container {
 	password := widget.NewPasswordEntry()
 	passphraseLabel := widget.NewLabel("Passphrase")
 	passphrase := widget.NewPasswordEntry()
+
+	hideAndShow := func(s string) {
+		userLabel.SetText("User logged in: " + s)
+		userLabel.Show()
+		fullSyncButton.Show()
+		LoginLabel.Hide()
+		login.Hide()
+		passwordLabel.Hide()
+		password.Hide()
+		passphraseLabel.Hide()
+		passphrase.Hide()
+	}
+
 	loginButton := widget.NewButton("Login", func() {
 		if login.Text == "" || password.Text == "" || passphrase.Text == "" {
 			g.dialogErr(errors.New("empty fields"))
@@ -40,15 +63,7 @@ func (g *GraphicApp) settingsTab(ctx context.Context) *fyne.Container {
 			g.dialogErr(err)
 			return
 		}
-		userLabel.SetText("User logged in: " + login.Text)
-		userLabel.Show()
-		fullSyncButton.Show()
-		LoginLabel.Hide()
-		login.Hide()
-		passwordLabel.Hide()
-		password.Hide()
-		passphraseLabel.Hide()
-		passphrase.Hide()
+		hideAndShow(login.Text)
 
 	})
 
@@ -62,15 +77,7 @@ func (g *GraphicApp) settingsTab(ctx context.Context) *fyne.Container {
 			g.dialogErr(err)
 			return
 		}
-		userLabel.SetText("User registered and logged in: " + login.Text)
-		userLabel.Show()
-		fullSyncButton.Show()
-		LoginLabel.Hide()
-		login.Hide()
-		passwordLabel.Hide()
-		password.Hide()
-		passphraseLabel.Hide()
-		passphrase.Hide()
+		hideAndShow(login.Text)
 	})
 	exitButton := widget.NewButton("Exit", func() {
 		g.mainWindow.Close()

@@ -1,3 +1,5 @@
+// Package: models
+// in this file we have main logic for models
 package models
 
 import (
@@ -10,8 +12,10 @@ import (
 	"io"
 )
 
+// FolderDataType - type of data in folder
 type FolderDataType string
 
+// FolderData - types of data in folder
 var FolderData = struct {
 	CreditCard  FolderDataType
 	Credentials FolderDataType
@@ -24,6 +28,7 @@ var FolderData = struct {
 	Binary:      "bn",
 }
 
+// Data - general data struct
 type Data struct {
 	UUID     string         `json:"uuid"`
 	Meta     string         `json:"meta"`
@@ -31,6 +36,7 @@ type Data struct {
 	Folder   Folder         `json:"data"`
 }
 
+// Folder - folder struct
 type Folder struct {
 	Card        CreditCard  `json:"card"`
 	Credentials Credentials `json:"credentials"`
@@ -38,6 +44,7 @@ type Folder struct {
 	Binary      BinaryData  `json:"binary"`
 }
 
+// CreditCard - credit card struct
 type CreditCard struct {
 	Number     string `json:"number"`
 	NameOnCard string `json:"name_on_card"`
@@ -45,20 +52,24 @@ type CreditCard struct {
 	CVV        string `json:"cvv"`
 }
 
+// Credentials - credentials struct
 type Credentials struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// TextData - text data struct
 type TextData struct {
 	Text string `json:"text"`
 }
 
+// BinaryData - binary data struct
 type BinaryData struct {
 	Name string `json:"name"`
 	Data []byte `json:"data"`
 }
 
+// EncryptData - encrypt data
 func (d *Data) EncryptData(key []byte) (*StoredData, error) {
 	key32 := sha256.Sum256(key)
 	c, err := aes.NewCipher(key32[:])
@@ -88,6 +99,7 @@ func (d *Data) EncryptData(key []byte) (*StoredData, error) {
 	}, nil
 }
 
+// StoredData - stored data struct
 type StoredData struct {
 	UUID          string `json:"uuid"`
 	Meta          string `json:"meta"`
@@ -95,6 +107,7 @@ type StoredData struct {
 	EncryptedData []byte `json:"encrypted_data"`
 }
 
+// DecryptData - decrypt data
 func (s *StoredData) DecryptData(key []byte) (*Data, error) {
 	key32 := sha256.Sum256(key)
 	c, err := aes.NewCipher(key32[:])
