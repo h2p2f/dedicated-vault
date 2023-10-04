@@ -2,6 +2,8 @@
 
 This project is an implementation of a technical specification for a client-server solution for storing and transmitting sensitive information that is vulnerable to compromise, including credit card information, login credentials, arbitrary text data, and binary files.
 
+To encode and decode user data, a user's passphrase is used, which is not stored either on the server or on the client in any form.
+
 The server solution is built on a `MongoDB` database and client connections are made through `GRPC`. Implementation features include only accepting `GRPC` server connections with trusted `TLS` parameters and user authorization verification through `JWT` tokens. User passwords are stored in hashed form on the server side, with no possibility of decryption of sensitive information in the event of unauthorized access to the server database.
 
 Implementation simplifications and features for the server include loading database access parameters from a YAML file `./config/config.yaml`, with production deployments requiring them to be taken from environment variables when starting containers. Docker-compose containerization has not been implemented.
